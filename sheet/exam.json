@@ -1,0 +1,25 @@
+{
+  "_note": "SAMPLE CONTENT - replace with your real details. Question/option text is raw LaTeX (math allowed).",
+  "institution_name": "Sample University",
+  "course_name": "Introduction to Programming (CS101)",
+  "faculty_name": "Dr. A. Sample",
+  "exam_title": "Mid-Semester Examination",
+  "test_number": "T-01",
+  "total_marks": 10,
+  "duration_mins": 20,
+  "roll_no_prefix": "",
+  "roll_no_digits": 5,
+  "page1_questions": 8,
+  "questions": [
+    {"text": "What is the value of $2^{5}$?", "options": [{"text": "10"}, {"text": "25"}, {"text": "32"}, {"text": "64"}]},
+    {"text": "Which data structure works on the LIFO principle?", "options": [{"text": "Queue"}, {"text": "Stack"}, {"text": "Array"}, {"text": "Graph"}]},
+    {"text": "What is the time complexity of binary search?", "options": [{"text": "$O(n)$"}, {"text": "$O(n^2)$"}, {"text": "$O(\\log n)$"}, {"text": "$O(1)$"}]},
+    {"text": "Which of these is a Python list literal?", "options": [{"text": "\\texttt{(1, 2)}"}, {"text": "\\texttt{[1, 2]}"}, {"text": "\\texttt{\\{1, 2\\}}"}, {"text": "\\texttt{<1, 2>}"}]},
+    {"text": "What is $\\int_0^1 x\\,dx$?", "options": [{"text": "$0$"}, {"text": "$\\tfrac{1}{2}$"}, {"text": "$1$"}, {"text": "$2$"}]},
+    {"text": "Which is NOT a programming paradigm?", "options": [{"text": "Functional"}, {"text": "Object-oriented"}, {"text": "Procedural"}, {"text": "Photographic"}]},
+    {"text": "The binary number $1011_2$ equals which decimal number?", "options": [{"text": "9"}, {"text": "10"}, {"text": "11"}, {"text": "13"}]},
+    {"text": "Which keyword defines a function in Python?", "options": [{"text": "\\texttt{func}"}, {"text": "\\texttt{def}"}, {"text": "\\texttt{function}"}, {"text": "\\texttt{lambda}"}]},
+    {"text": "What does CPU stand for?", "options": [{"text": "Central Processing Unit"}, {"text": "Computer Personal Unit"}, {"text": "Central Program Utility"}, {"text": "Control Process Unit"}]},
+    {"text": "Which sorting algorithm has worst-case time $O(n \\log n)$?", "options": [{"text": "Quick sort"}, {"text": "Bubble sort"}, {"text": "Merge sort"}, {"text": "Insertion sort"}]}
+  ]
+}

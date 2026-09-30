@@ -1,0 +1,468 @@
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=0.70in, top=10.0mm, bottom=10.0mm]{geometry}
+\usepackage{mathptmx}
+\usepackage[scaled=.92]{helvet}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amsfonts,amssymb}
+\usepackage{enumitem}
+\usepackage{needspace}
+\usepackage{tikz}
+\usepackage{graphicx}
+\usepackage{microtype}
+\usepackage{qrcode}
+\usepackage{eso-pic}
+\linespread{1.08}
+\everymath{\displaystyle}
+
+\allowdisplaybreaks
+\setlength{\parindent}{0pt}
+\raggedbottom
+\pagestyle{empty}
+
+%% ═══ OMR strip: drawn on page 1 at absolute positions (mm, y down from the page top). ═══
+%% Page 1 only: registration number, questions, paper ID.
+\AddToShipoutPictureFG{%
+\ifnum\value{page}=1\relax
+\AtPageUpperLeft{\begin{tikzpicture}[overlay]\sffamily
+  %% alignment frame: thick outline + solid header bar (orientation cue)
+  \draw[line width=1.4mm, line join=miter, black] (134.000mm,-10.000mm) rectangle (202.000mm,-287.001mm);
+  \fill[black] (134.000mm,-10.000mm) rectangle (202.000mm,-20.000mm);
+  \draw[rounded corners=2mm, line width=0.35pt] (137.000mm,-22.300mm) rectangle (199.000mm,-106.063mm);
+  \node[font=\fontsize{5.5}{6}\selectfont\bfseries] at (168.000mm,-25.500mm) {REGISTRATION NUMBER (5 DIGITS)};
+  \draw[line width=0.5pt] (142.500mm,-29.050mm) rectangle (149.500mm,-35.550mm);
+  \draw[line width=0.35pt] (146.000mm,-39.800mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (146.000mm,-39.800mm) {0};
+  \draw[line width=0.35pt] (146.000mm,-46.718mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (146.000mm,-46.718mm) {1};
+  \draw[line width=0.35pt] (146.000mm,-53.636mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (146.000mm,-53.636mm) {2};
+  \draw[line width=0.35pt] (146.000mm,-60.554mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (146.000mm,-60.554mm) {3};
+  \draw[line width=0.35pt] (146.000mm,-67.472mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (146.000mm,-67.472mm) {4};
+  \draw[line width=0.35pt] (146.000mm,-74.390mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (146.000mm,-74.390mm) {5};
+  \draw[line width=0.35pt] (146.000mm,-81.308mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (146.000mm,-81.308mm) {6};
+  \draw[line width=0.35pt] (146.000mm,-88.227mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (146.000mm,-88.227mm) {7};
+  \draw[line width=0.35pt] (146.000mm,-95.145mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (146.000mm,-95.145mm) {8};
+  \draw[line width=0.35pt] (146.000mm,-102.063mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (146.000mm,-102.063mm) {9};
+  \draw[line width=0.5pt] (153.500mm,-29.050mm) rectangle (160.500mm,-35.550mm);
+  \draw[line width=0.35pt] (157.000mm,-39.800mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (157.000mm,-39.800mm) {0};
+  \draw[line width=0.35pt] (157.000mm,-46.718mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (157.000mm,-46.718mm) {1};
+  \draw[line width=0.35pt] (157.000mm,-53.636mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (157.000mm,-53.636mm) {2};
+  \draw[line width=0.35pt] (157.000mm,-60.554mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (157.000mm,-60.554mm) {3};
+  \draw[line width=0.35pt] (157.000mm,-67.472mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (157.000mm,-67.472mm) {4};
+  \draw[line width=0.35pt] (157.000mm,-74.390mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (157.000mm,-74.390mm) {5};
+  \draw[line width=0.35pt] (157.000mm,-81.308mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (157.000mm,-81.308mm) {6};
+  \draw[line width=0.35pt] (157.000mm,-88.227mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (157.000mm,-88.227mm) {7};
+  \draw[line width=0.35pt] (157.000mm,-95.145mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (157.000mm,-95.145mm) {8};
+  \draw[line width=0.35pt] (157.000mm,-102.063mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (157.000mm,-102.063mm) {9};
+  \draw[line width=0.5pt] (164.500mm,-29.050mm) rectangle (171.500mm,-35.550mm);
+  \draw[line width=0.35pt] (168.000mm,-39.800mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (168.000mm,-39.800mm) {0};
+  \draw[line width=0.35pt] (168.000mm,-46.718mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (168.000mm,-46.718mm) {1};
+  \draw[line width=0.35pt] (168.000mm,-53.636mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (168.000mm,-53.636mm) {2};
+  \draw[line width=0.35pt] (168.000mm,-60.554mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (168.000mm,-60.554mm) {3};
+  \draw[line width=0.35pt] (168.000mm,-67.472mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (168.000mm,-67.472mm) {4};
+  \draw[line width=0.35pt] (168.000mm,-74.390mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (168.000mm,-74.390mm) {5};
+  \draw[line width=0.35pt] (168.000mm,-81.308mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (168.000mm,-81.308mm) {6};
+  \draw[line width=0.35pt] (168.000mm,-88.227mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (168.000mm,-88.227mm) {7};
+  \draw[line width=0.35pt] (168.000mm,-95.145mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (168.000mm,-95.145mm) {8};
+  \draw[line width=0.35pt] (168.000mm,-102.063mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (168.000mm,-102.063mm) {9};
+  \draw[line width=0.5pt] (175.500mm,-29.050mm) rectangle (182.500mm,-35.550mm);
+  \draw[line width=0.35pt] (179.000mm,-39.800mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (179.000mm,-39.800mm) {0};
+  \draw[line width=0.35pt] (179.000mm,-46.718mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (179.000mm,-46.718mm) {1};
+  \draw[line width=0.35pt] (179.000mm,-53.636mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (179.000mm,-53.636mm) {2};
+  \draw[line width=0.35pt] (179.000mm,-60.554mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (179.000mm,-60.554mm) {3};
+  \draw[line width=0.35pt] (179.000mm,-67.472mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (179.000mm,-67.472mm) {4};
+  \draw[line width=0.35pt] (179.000mm,-74.390mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (179.000mm,-74.390mm) {5};
+  \draw[line width=0.35pt] (179.000mm,-81.308mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (179.000mm,-81.308mm) {6};
+  \draw[line width=0.35pt] (179.000mm,-88.227mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (179.000mm,-88.227mm) {7};
+  \draw[line width=0.35pt] (179.000mm,-95.145mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (179.000mm,-95.145mm) {8};
+  \draw[line width=0.35pt] (179.000mm,-102.063mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (179.000mm,-102.063mm) {9};
+  \draw[line width=0.5pt] (186.500mm,-29.050mm) rectangle (193.500mm,-35.550mm);
+  \draw[line width=0.35pt] (190.000mm,-39.800mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (190.000mm,-39.800mm) {0};
+  \draw[line width=0.35pt] (190.000mm,-46.718mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (190.000mm,-46.718mm) {1};
+  \draw[line width=0.35pt] (190.000mm,-53.636mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (190.000mm,-53.636mm) {2};
+  \draw[line width=0.35pt] (190.000mm,-60.554mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (190.000mm,-60.554mm) {3};
+  \draw[line width=0.35pt] (190.000mm,-67.472mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (190.000mm,-67.472mm) {4};
+  \draw[line width=0.35pt] (190.000mm,-74.390mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (190.000mm,-74.390mm) {5};
+  \draw[line width=0.35pt] (190.000mm,-81.308mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (190.000mm,-81.308mm) {6};
+  \draw[line width=0.35pt] (190.000mm,-88.227mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (190.000mm,-88.227mm) {7};
+  \draw[line width=0.35pt] (190.000mm,-95.145mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (190.000mm,-95.145mm) {8};
+  \draw[line width=0.35pt] (190.000mm,-102.063mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (190.000mm,-102.063mm) {9};
+  \draw[rounded corners=2mm, line width=0.35pt] (137.000mm,-108.363mm) rectangle (199.000mm,-197.838mm);
+  \node[font=\fontsize{5.5}{6}\selectfont\bfseries] at (168.000mm,-111.563mm) {QUESTIONS (1-10)};
+  \node[font=\fontsize{5}{5}\selectfont\bfseries, anchor=east] at (148.800mm,-116.763mm) {Q No.};
+  \node[font=\fontsize{5}{5}\selectfont\bfseries] at (158.000mm,-116.763mm) {A};
+  \node[font=\fontsize{5}{5}\selectfont\bfseries] at (169.500mm,-116.763mm) {B};
+  \node[font=\fontsize{5}{5}\selectfont\bfseries] at (181.000mm,-116.763mm) {C};
+  \node[font=\fontsize{5}{5}\selectfont\bfseries] at (192.500mm,-116.763mm) {D};
+  \draw[line width=0.2pt, black!20] (139.000mm,-157.400mm) -- (197.000mm,-157.400mm);
+  \node[font=\fontsize{6}{6}\selectfont, anchor=east] at (148.800mm,-121.563mm) {1.};
+  \draw[line width=0.35pt] (158.000mm,-121.563mm) circle ( 2.2mm );
+  \draw[line width=0.35pt] (169.500mm,-121.563mm) circle ( 2.2mm );
+  \draw[line width=0.35pt] (181.000mm,-121.563mm) circle ( 2.2mm );
+  \draw[line width=0.35pt] (192.500mm,-121.563mm) circle ( 2.2mm );
+  \node[font=\fontsize{6}{6}\selectfont, anchor=east] at (148.800mm,-129.527mm) {2.};
+  \draw[line width=0.35pt] (158.000mm,-129.527mm) circle ( 2.2mm );
+  \draw[line width=0.35pt] (169.500mm,-129.527mm) circle ( 2.2mm );
+  \draw[line width=0.35pt] (181.000mm,-129.527mm) circle ( 2.2mm );
+  \draw[line width=0.35pt] (192.500mm,-129.527mm) circle ( 2.2mm );
+  \node[font=\fontsize{6}{6}\selectfont, anchor=east] at (148.800mm,-137.491mm) {3.};
+  \draw[line width=0.35pt] (158.000mm,-137.491mm) circle ( 2.2mm );
+  \draw[line width=0.35pt] (169.500mm,-137.491mm) circle ( 2.2mm );
+  \draw[line width=0.35pt] (181.000mm,-137.491mm) circle ( 2.2mm );
+  \draw[line width=0.35pt] (192.500mm,-137.491mm) circle ( 2.2mm );
+  \node[font=\fontsize{6}{6}\selectfont, anchor=east] at (148.800mm,-145.455mm) {4.};
+  \draw[line width=0.35pt] (158.000mm,-145.455mm) circle ( 2.2mm );
+  \draw[line width=0.35pt] (169.500mm,-145.455mm) circle ( 2.2mm );
+  \draw[line width=0.35pt] (181.000mm,-145.455mm) circle ( 2.2mm );
+  \draw[line width=0.35pt] (192.500mm,-145.455mm) circle ( 2.2mm );
+  \node[font=\fontsize{6}{6}\selectfont, anchor=east] at (148.800mm,-153.418mm) {5.};
+  \draw[line width=0.35pt] (158.000mm,-153.418mm) circle ( 2.2mm );
+  \draw[line width=0.35pt] (169.500mm,-153.418mm) circle ( 2.2mm );
+  \draw[line width=0.35pt] (181.000mm,-153.418mm) circle ( 2.2mm );
+  \draw[line width=0.35pt] (192.500mm,-153.418mm) circle ( 2.2mm );
+  \node[font=\fontsize{6}{6}\selectfont, anchor=east] at (148.800mm,-161.382mm) {6.};
+  \draw[line width=0.35pt] (158.000mm,-161.382mm) circle ( 2.2mm );
+  \draw[line width=0.35pt] (169.500mm,-161.382mm) circle ( 2.2mm );
+  \draw[line width=0.35pt] (181.000mm,-161.382mm) circle ( 2.2mm );
+  \draw[line width=0.35pt] (192.500mm,-161.382mm) circle ( 2.2mm );
+  \node[font=\fontsize{6}{6}\selectfont, anchor=east] at (148.800mm,-169.346mm) {7.};
+  \draw[line width=0.35pt] (158.000mm,-169.346mm) circle ( 2.2mm );
+  \draw[line width=0.35pt] (169.500mm,-169.346mm) circle ( 2.2mm );
+  \draw[line width=0.35pt] (181.000mm,-169.346mm) circle ( 2.2mm );
+  \draw[line width=0.35pt] (192.500mm,-169.346mm) circle ( 2.2mm );
+  \node[font=\fontsize{6}{6}\selectfont, anchor=east] at (148.800mm,-177.310mm) {8.};
+  \draw[line width=0.35pt] (158.000mm,-177.310mm) circle ( 2.2mm );
+  \draw[line width=0.35pt] (169.500mm,-177.310mm) circle ( 2.2mm );
+  \draw[line width=0.35pt] (181.000mm,-177.310mm) circle ( 2.2mm );
+  \draw[line width=0.35pt] (192.500mm,-177.310mm) circle ( 2.2mm );
+  \node[font=\fontsize{6}{6}\selectfont, anchor=east] at (148.800mm,-185.274mm) {9.};
+  \draw[line width=0.35pt] (158.000mm,-185.274mm) circle ( 2.2mm );
+  \draw[line width=0.35pt] (169.500mm,-185.274mm) circle ( 2.2mm );
+  \draw[line width=0.35pt] (181.000mm,-185.274mm) circle ( 2.2mm );
+  \draw[line width=0.35pt] (192.500mm,-185.274mm) circle ( 2.2mm );
+  \node[font=\fontsize{6}{6}\selectfont, anchor=east] at (148.800mm,-193.238mm) {10.};
+  \draw[line width=0.35pt] (158.000mm,-193.238mm) circle ( 2.2mm );
+  \draw[line width=0.35pt] (169.500mm,-193.238mm) circle ( 2.2mm );
+  \draw[line width=0.35pt] (181.000mm,-193.238mm) circle ( 2.2mm );
+  \draw[line width=0.35pt] (192.500mm,-193.238mm) circle ( 2.2mm );
+  \draw[rounded corners=2mm, line width=0.35pt] (137.000mm,-200.138mm) rectangle (199.000mm,-283.901mm);
+  \node[font=\fontsize{5.5}{6}\selectfont\bfseries] at (168.000mm,-203.338mm) {PAPER ID (6 DIGITS)};
+  \draw[line width=0.5pt] (140.000mm,-206.888mm) rectangle (147.000mm,-213.388mm);
+  \draw[line width=0.35pt] (143.500mm,-217.638mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (143.500mm,-217.638mm) {0};
+  \draw[line width=0.35pt] (143.500mm,-224.556mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (143.500mm,-224.556mm) {1};
+  \draw[line width=0.35pt] (143.500mm,-231.474mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (143.500mm,-231.474mm) {2};
+  \draw[line width=0.35pt] (143.500mm,-238.392mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (143.500mm,-238.392mm) {3};
+  \draw[line width=0.35pt] (143.500mm,-245.310mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (143.500mm,-245.310mm) {4};
+  \draw[line width=0.35pt] (143.500mm,-252.228mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (143.500mm,-252.228mm) {5};
+  \draw[line width=0.35pt] (143.500mm,-259.146mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (143.500mm,-259.146mm) {6};
+  \draw[line width=0.35pt] (143.500mm,-266.065mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (143.500mm,-266.065mm) {7};
+  \draw[line width=0.35pt] (143.500mm,-272.983mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (143.500mm,-272.983mm) {8};
+  \draw[line width=0.35pt] (143.500mm,-279.901mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (143.500mm,-279.901mm) {9};
+  \draw[line width=0.5pt] (149.800mm,-206.888mm) rectangle (156.800mm,-213.388mm);
+  \draw[line width=0.35pt] (153.300mm,-217.638mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (153.300mm,-217.638mm) {0};
+  \draw[line width=0.35pt] (153.300mm,-224.556mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (153.300mm,-224.556mm) {1};
+  \draw[line width=0.35pt] (153.300mm,-231.474mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (153.300mm,-231.474mm) {2};
+  \draw[line width=0.35pt] (153.300mm,-238.392mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (153.300mm,-238.392mm) {3};
+  \draw[line width=0.35pt] (153.300mm,-245.310mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (153.300mm,-245.310mm) {4};
+  \draw[line width=0.35pt] (153.300mm,-252.228mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (153.300mm,-252.228mm) {5};
+  \draw[line width=0.35pt] (153.300mm,-259.146mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (153.300mm,-259.146mm) {6};
+  \draw[line width=0.35pt] (153.300mm,-266.065mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (153.300mm,-266.065mm) {7};
+  \draw[line width=0.35pt] (153.300mm,-272.983mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (153.300mm,-272.983mm) {8};
+  \draw[line width=0.35pt] (153.300mm,-279.901mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (153.300mm,-279.901mm) {9};
+  \draw[line width=0.5pt] (159.600mm,-206.888mm) rectangle (166.600mm,-213.388mm);
+  \draw[line width=0.35pt] (163.100mm,-217.638mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (163.100mm,-217.638mm) {0};
+  \draw[line width=0.35pt] (163.100mm,-224.556mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (163.100mm,-224.556mm) {1};
+  \draw[line width=0.35pt] (163.100mm,-231.474mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (163.100mm,-231.474mm) {2};
+  \draw[line width=0.35pt] (163.100mm,-238.392mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (163.100mm,-238.392mm) {3};
+  \draw[line width=0.35pt] (163.100mm,-245.310mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (163.100mm,-245.310mm) {4};
+  \draw[line width=0.35pt] (163.100mm,-252.228mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (163.100mm,-252.228mm) {5};
+  \draw[line width=0.35pt] (163.100mm,-259.146mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (163.100mm,-259.146mm) {6};
+  \draw[line width=0.35pt] (163.100mm,-266.065mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (163.100mm,-266.065mm) {7};
+  \draw[line width=0.35pt] (163.100mm,-272.983mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (163.100mm,-272.983mm) {8};
+  \draw[line width=0.35pt] (163.100mm,-279.901mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (163.100mm,-279.901mm) {9};
+  \draw[line width=0.5pt] (169.400mm,-206.888mm) rectangle (176.400mm,-213.388mm);
+  \draw[line width=0.35pt] (172.900mm,-217.638mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (172.900mm,-217.638mm) {0};
+  \draw[line width=0.35pt] (172.900mm,-224.556mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (172.900mm,-224.556mm) {1};
+  \draw[line width=0.35pt] (172.900mm,-231.474mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (172.900mm,-231.474mm) {2};
+  \draw[line width=0.35pt] (172.900mm,-238.392mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (172.900mm,-238.392mm) {3};
+  \draw[line width=0.35pt] (172.900mm,-245.310mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (172.900mm,-245.310mm) {4};
+  \draw[line width=0.35pt] (172.900mm,-252.228mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (172.900mm,-252.228mm) {5};
+  \draw[line width=0.35pt] (172.900mm,-259.146mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (172.900mm,-259.146mm) {6};
+  \draw[line width=0.35pt] (172.900mm,-266.065mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (172.900mm,-266.065mm) {7};
+  \draw[line width=0.35pt] (172.900mm,-272.983mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (172.900mm,-272.983mm) {8};
+  \draw[line width=0.35pt] (172.900mm,-279.901mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (172.900mm,-279.901mm) {9};
+  \draw[line width=0.5pt] (179.200mm,-206.888mm) rectangle (186.200mm,-213.388mm);
+  \draw[line width=0.35pt] (182.700mm,-217.638mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (182.700mm,-217.638mm) {0};
+  \draw[line width=0.35pt] (182.700mm,-224.556mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (182.700mm,-224.556mm) {1};
+  \draw[line width=0.35pt] (182.700mm,-231.474mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (182.700mm,-231.474mm) {2};
+  \draw[line width=0.35pt] (182.700mm,-238.392mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (182.700mm,-238.392mm) {3};
+  \draw[line width=0.35pt] (182.700mm,-245.310mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (182.700mm,-245.310mm) {4};
+  \draw[line width=0.35pt] (182.700mm,-252.228mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (182.700mm,-252.228mm) {5};
+  \draw[line width=0.35pt] (182.700mm,-259.146mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (182.700mm,-259.146mm) {6};
+  \draw[line width=0.35pt] (182.700mm,-266.065mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (182.700mm,-266.065mm) {7};
+  \draw[line width=0.35pt] (182.700mm,-272.983mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (182.700mm,-272.983mm) {8};
+  \draw[line width=0.35pt] (182.700mm,-279.901mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (182.700mm,-279.901mm) {9};
+  \draw[line width=0.5pt] (189.000mm,-206.888mm) rectangle (196.000mm,-213.388mm);
+  \draw[line width=0.35pt] (192.500mm,-217.638mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (192.500mm,-217.638mm) {0};
+  \draw[line width=0.35pt] (192.500mm,-224.556mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (192.500mm,-224.556mm) {1};
+  \draw[line width=0.35pt] (192.500mm,-231.474mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (192.500mm,-231.474mm) {2};
+  \draw[line width=0.35pt] (192.500mm,-238.392mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (192.500mm,-238.392mm) {3};
+  \draw[line width=0.35pt] (192.500mm,-245.310mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (192.500mm,-245.310mm) {4};
+  \draw[line width=0.35pt] (192.500mm,-252.228mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (192.500mm,-252.228mm) {5};
+  \draw[line width=0.35pt] (192.500mm,-259.146mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (192.500mm,-259.146mm) {6};
+  \draw[line width=0.35pt] (192.500mm,-266.065mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (192.500mm,-266.065mm) {7};
+  \draw[line width=0.35pt] (192.500mm,-272.983mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (192.500mm,-272.983mm) {8};
+  \draw[line width=0.35pt] (192.500mm,-279.901mm) circle ( 2.2mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (192.500mm,-279.901mm) {9};
+\end{tikzpicture}}%
+\fi
+}
+
+\begin{document}
+\newgeometry{left=12.0mm, right=82.0mm, top=10.0mm, bottom=10.0mm}
+%% ═══ Header: institution / course / exam details (QR code sits to the right, drawn above) ═══
+\noindent\begin{minipage}[t]{\dimexpr\linewidth-24mm\relax}
+\centering
+{\LARGE\bfseries Sample University}\par\vspace{3pt}
+{\large Introduction to Programming (CS101)}\par\vspace{2pt}
+{\large\bfseries Mid-Semester Examination}\par
+\vspace{2pt}{\small Course Instructor: \textbf{Dr. A. Sample}}\par
+\end{minipage}
+\vspace{7pt}
+
+\noindent\rule{\linewidth}{0.8pt}\par\vspace{2pt}
+\noindent\small
+\textbf{Max Marks:} 10\hfill
+\textbf{Time:} 20 min\hfill \textbf{Paper ID:} \rule{2cm}{0.4pt}\par\vspace{2pt}
+\noindent\rule{\linewidth}{0.8pt}
+\vspace{4pt}
+
+%% Name (for people, not machines)
+\noindent\textbf{Name:}\enspace\raisebox{-2mm}{\begin{tikzpicture}\draw[thick] (0,0) rectangle (0.8\linewidth,0.75cm);\end{tikzpicture}}
+
+\vspace{9pt}
+%% Roll number, section, date
+\noindent\textbf{Regn No:}\enspace\raisebox{-1.6mm}{\begin{tikzpicture}[baseline=0pt]
+  \draw[thick, step=0.6cm] (0,0) grid ( 3.0cm, 0.6cm );
+\end{tikzpicture}}\hfill
+\textbf{Section:}\enspace\rule{1.6cm}{0.4pt}
+
+\vspace{9pt}
+\noindent\textbf{Date:}\enspace\raisebox{-1.6mm}{\begin{tikzpicture}[baseline=0pt]\draw[thick, step=0.6cm] (0,0) grid (1.2cm, 0.6cm);\end{tikzpicture}}\raisebox{0.2ex}{\,/\,}\raisebox{-1.6mm}{\begin{tikzpicture}[baseline=0pt]\draw[thick, step=0.6cm] (0,0) grid (1.2cm, 0.6cm);\end{tikzpicture}}\raisebox{0.2ex}{\,/\,}\raisebox{-1.6mm}{\begin{tikzpicture}[baseline=0pt]\draw[thick, step=0.6cm] (0,0) grid (2.4cm, 0.6cm);\end{tikzpicture}}
+
+\vspace{9pt}
+\noindent\fbox{\parbox{\dimexpr\linewidth-2\fboxsep-2\fboxrule\relax}{\footnotesize\textbf{Instructions:} Fill each bubble completely with a dark pen or pencil. Only one answer per question.
+Fill the registration number and paper ID bubbles in the answer strip on the right.\ Do not write on the black frame.}}
+
+\vspace{10pt}
+
+%% ═══ Questions that fit beside the answer strip (page 1) ═══
+\begin{enumerate}[label=\textbf{Q\arabic*.},leftmargin=*,itemsep=11pt,parsep=0pt,topsep=0pt]
+\needspace{5\baselineskip}
+\item What is the value of $2^{5}$?
+  \begin{enumerate}[label=\textbf{\Alph*.},leftmargin=2.4em,itemsep=4pt,parsep=0pt,topsep=5pt]
+  \item 10
+  \item 25
+  \item 32
+  \item 64
+  \end{enumerate}
+
+\needspace{5\baselineskip}
+\item Which data structure works on the LIFO principle?
+  \begin{enumerate}[label=\textbf{\Alph*.},leftmargin=2.4em,itemsep=4pt,parsep=0pt,topsep=5pt]
+  \item Queue
+  \item Stack
+  \item Array
+  \item Graph
+  \end{enumerate}
+
+\needspace{5\baselineskip}
+\item What is the time complexity of binary search?
+  \begin{enumerate}[label=\textbf{\Alph*.},leftmargin=2.4em,itemsep=4pt,parsep=0pt,topsep=5pt]
+  \item $O(n)$
+  \item $O(n^2)$
+  \item $O(\log n)$
+  \item $O(1)$
+  \end{enumerate}
+
+\needspace{5\baselineskip}
+\item Which of these is a Python list literal?
+  \begin{enumerate}[label=\textbf{\Alph*.},leftmargin=2.4em,itemsep=4pt,parsep=0pt,topsep=5pt]
+  \item \texttt{(1, 2)}
+  \item \texttt{[1, 2]}
+  \item \texttt{\{1, 2\}}
+  \item \texttt{<1, 2>}
+  \end{enumerate}
+
+\needspace{5\baselineskip}
+\item What is $\int_0^1 x\,dx$?
+  \begin{enumerate}[label=\textbf{\Alph*.},leftmargin=2.4em,itemsep=4pt,parsep=0pt,topsep=5pt]
+  \item $0$
+  \item $\tfrac{1}{2}$
+  \item $1$
+  \item $2$
+  \end{enumerate}
+
+\needspace{5\baselineskip}
+\item Which is NOT a programming paradigm?
+  \begin{enumerate}[label=\textbf{\Alph*.},leftmargin=2.4em,itemsep=4pt,parsep=0pt,topsep=5pt]
+  \item Functional
+  \item Object-oriented
+  \item Procedural
+  \item Photographic
+  \end{enumerate}
+
+\needspace{5\baselineskip}
+\item The binary number $1011_2$ equals which decimal number?
+  \begin{enumerate}[label=\textbf{\Alph*.},leftmargin=2.4em,itemsep=4pt,parsep=0pt,topsep=5pt]
+  \item 9
+  \item 10
+  \item 11
+  \item 13
+  \end{enumerate}
+
+\needspace{5\baselineskip}
+\item Which keyword defines a function in Python?
+  \begin{enumerate}[label=\textbf{\Alph*.},leftmargin=2.4em,itemsep=4pt,parsep=0pt,topsep=5pt]
+  \item \texttt{func}
+  \item \texttt{def}
+  \item \texttt{function}
+  \item \texttt{lambda}
+  \end{enumerate}
+
+\end{enumerate}
+\restoregeometry
+%% ═══ Remaining questions: full text width, no answer strip ═══
+\noindent{\large\bfseries Sample University} --- Mid-Semester Examination%
+\hfill{\small Paper ID: }
+
+\vspace{2pt}\hrule\vspace{10pt}
+
+\begin{enumerate}[label=\textbf{Q\arabic*.},leftmargin=*,itemsep=12pt,parsep=0pt,topsep=0pt,%
+                  start=9]
+\needspace{5\baselineskip}
+\item What does CPU stand for?
+  \begin{enumerate}[label=\textbf{\Alph*.},leftmargin=2.4em,itemsep=4pt,parsep=0pt,topsep=5pt]
+  \item Central Processing Unit
+  \item Computer Personal Unit
+  \item Central Program Utility
+  \item Control Process Unit
+  \end{enumerate}
+
+\needspace{5\baselineskip}
+\item Which sorting algorithm has worst-case time $O(n \log n)$?
+  \begin{enumerate}[label=\textbf{\Alph*.},leftmargin=2.4em,itemsep=4pt,parsep=0pt,topsep=5pt]
+  \item Quick sort
+  \item Bubble sort
+  \item Merge sort
+  \item Insertion sort
+  \end{enumerate}
+
+\end{enumerate}
+\end{document}

@@ -1,0 +1,69 @@
+{
+  "page": {
+    "w": 210.0,
+    "h": 297.0
+  },
+  "bubble_radius": 2.2,
+  "frame": {
+    "x0": 134.0,
+    "x1": 202.0,
+    "y0": 10.0,
+    "stroke": 1.4,
+    "header_h": 10.0,
+    "header_title": "",
+    "header_subtitle": "",
+    "margin_x": 3.0,
+    "section_gap": 2.3,
+    "bottom_pad": 3.1,
+    "y1": 287.0,
+    "max_stretch": 2.5
+  },
+  "paper_area": {
+    "x0": 12.0,
+    "y0": 10.0,
+    "x1": 128.0,
+    "y1": 287.0,
+    "label": "",
+    "outline": false
+  },
+  "id_style": {
+    "title_dy": 3.2,
+    "box_dy": 6.75,
+    "box_w": 7.0,
+    "box_h": 6.5,
+    "first_row_dy": 17.5,
+    "row_pitch": 4.3,
+    "col_pitch": 11.0,
+    "bottom_pad": 4.0
+  },
+  "question_style": {
+    "title_dy": 3.2,
+    "header_dy": 8.4,
+    "first_row_dy": 13.2,
+    "row_pitch": 4.95,
+    "first_option_dx": 21.0,
+    "option_pitch": 11.5,
+    "number_right_dx": 11.8,
+    "bottom_pad": 4.6
+  },
+  "num_questions": 10,
+  "allowed_counts": [
+    10,
+    15
+  ],
+  "id_sections": {
+    "registration": {
+      "title": "REGISTRATION NUMBER ({n} DIGITS)",
+      "digits": 5
+    },
+    "paper_id": {
+      "title": "PAPER ID ({n} DIGITS)",
+      "digits": 6
+    }
+  },
+  "question_section": {
+    "title": "QUESTIONS ({first}-{last})",
+    "options": "ABCD",
+    "group_size": 5
+  }
+}

@@ -1,0 +1,159 @@
+(% macro render_question(q) %)
+\needspace{5\baselineskip}
+\item (( q.text ))
+  \begin{enumerate}[label=\textbf{\Alph*.},leftmargin=2.4em,itemsep=4pt,parsep=0pt,topsep=5pt]
+(% for opt in q.options %)
+  \item (( opt.text ))
+(% endfor %)
+  \end{enumerate}
+(% endmacro %)
+\documentclass[11pt,a4paper]{article}
+\usepackage[margin=0.70in, top=(( text_margin.top ))mm, bottom=(( text_margin.bottom ))mm]{geometry}
+\usepackage{mathptmx}
+\usepackage[scaled=.92]{helvet}
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amsfonts,amssymb}
+\usepackage{enumitem}
+\usepackage{needspace}
+\usepackage{tikz}
+\usepackage{graphicx}
+\usepackage{microtype}
+\usepackage{qrcode}
+\usepackage{eso-pic}
+\linespread{1.08}
+\everymath{\displaystyle}
+
+\allowdisplaybreaks
+\setlength{\parindent}{0pt}
+\raggedbottom
+\pagestyle{empty}
+
+%% ═══ OMR strip: drawn on page 1 at absolute positions (mm, y down from the page top). ═══
+%% Page 1 only: registration number, questions, paper ID.
+\AddToShipoutPictureFG{%
+\ifnum\value{page}=1\relax
+\AtPageUpperLeft{\begin{tikzpicture}[overlay]\sffamily
+(% if paper_area and paper_area.outline %)
+  \draw[dash pattern=on 1mm off 1mm, line width=0.3pt, black!25] (( P(paper_area.x0, paper_area.y0) )) rectangle (( P(paper_area.x1, paper_area.y1) ));
+(% endif %)
+  %% alignment frame: thick outline + solid header bar (orientation cue)
+  \draw[line width=(( frame.stroke ))mm, line join=miter, black] (( P(frame.x0, frame.y0) )) rectangle (( P(frame.x1, frame.y1) ));
+  \fill[black] (( P(frame.x0, frame.y0) )) rectangle (( P(frame.x1, frame.y0 + frame.header_h) ));
+(% if frame.header_title %)
+  \node[font=\fontsize{8}{9}\selectfont\bfseries, text=white] at (( P((frame.x0 + frame.x1) / 2, frame.y0 + 3.5) )) {(( frame.header_title | tex ))};
+(% endif %)
+(% if frame.header_subtitle %)
+  \node[font=\fontsize{4.6}{5}\selectfont, text=white!85!black] at (( P((frame.x0 + frame.x1) / 2, frame.y0 + 7.3) )) {(( frame.header_subtitle | tex ))};
+(% endif %)
+(% for s in sections %)
+  \draw[rounded corners=2mm, line width=0.35pt] (( P(s.x0, s.y0) )) rectangle (( P(s.x1, s.y1) ));
+  \node[font=\fontsize{5.5}{6}\selectfont\bfseries] at (( P((s.x0 + s.x1) / 2, s.title_y) )) {(( s.title | tex ))};
+(% if s.type == 'id' %)
+(% for c in s.columns %)
+(% set ci = loop.index0 %)
+(% set prefill = paper_id_digits and s.key == 'paper_id' %)
+  \draw[line width=0.5pt] (( P(c.box.x0, c.box.y0) )) rectangle (( P(c.box.x1, c.box.y1) ));
+(% if prefill %)
+  \node[font=\Large\bfseries] at (( P((c.box.x0 + c.box.x1) / 2, (c.box.y0 + c.box.y1) / 2) )) {(( paper_id_digits[ci] ))};
+(% endif %)
+(% for b in c.bubbles %)
+(% if prefill and b.digit | string == paper_id_digits[ci] %)
+  \fill[black] (( P(b.cx, b.cy) )) circle ( (( bubble_r ))mm );
+(% else %)
+  \draw[line width=0.35pt] (( P(b.cx, b.cy) )) circle ( (( bubble_r ))mm );
+  \node[font=\fontsize{3.6}{3.6}\selectfont, text=black!70] at (( P(b.cx, b.cy) )) {(( b.digit ))};
+(% endif %)
+(% endfor %)
+(% endfor %)
+(% else %)
+  \node[font=\fontsize{5}{5}\selectfont\bfseries, anchor=east] at (( P(s.number_x, s.header_y) )) {Q No.};
+(% for o in s.option_heads %)
+  \node[font=\fontsize{5}{5}\selectfont\bfseries] at (( P(o.cx, s.header_y) )) {(( o.letter ))};
+(% endfor %)
+(% for y in s.separators %)
+  \draw[line width=0.2pt, black!20] (( P(s.x0 + 2, y) )) -- (( P(s.x1 - 2, y) ));
+(% endfor %)
+(% for r in s.rows %)
+  \node[font=\fontsize{6}{6}\selectfont, anchor=east] at (( P(s.number_x, r.cy) )) {(( r.q )).};
+(% for o in r.options %)
+  \draw[line width=0.35pt] (( P(o.cx, o.cy) )) circle ( (( bubble_r ))mm );
+(% endfor %)
+(% endfor %)
+(% endif %)
+(% endfor %)
+(% if qr_text %)
+  \node[anchor=north east, inner sep=0pt] at (( P(paper_area.x1, paper_area.y0) )) {\qrcode[height=20mm]{(( qr_text ))}};
+  \node[anchor=north east, font=\fontsize{5}{6}\selectfont\ttfamily, inner sep=0pt] at (( P(paper_area.x1, paper_area.y0 + 21) )) {(( qr_label | tex ))};
+(% endif %)
+\end{tikzpicture}}%
+\fi
+}
+
+\begin{document}
+\newgeometry{left=(( text_margin.left ))mm, right=(( text_margin.right ))mm, top=(( text_margin.top ))mm, bottom=(( text_margin.bottom ))mm}
+(% if exam %)
+%% ═══ Header: institution / course / exam details (QR code sits to the right, drawn above) ═══
+\noindent\begin{minipage}[t]{\dimexpr\linewidth-24mm\relax}
+\centering
+{\LARGE\bfseries (( exam.institution_name | tex ))}\par\vspace{3pt}
+{\large (( exam.course_name | tex ))}\par\vspace{2pt}
+{\large\bfseries (( exam.exam_title | tex ))}\par
+(% if exam.faculty_name %)
+\vspace{2pt}{\small Course Instructor: \textbf{(( exam.faculty_name | tex ))}}\par
+(% endif %)
+\end{minipage}
+\vspace{7pt}
+
+\noindent\rule{\linewidth}{0.8pt}\par\vspace{2pt}
+\noindent\small
+(% if exam.total_marks %)\textbf{Max Marks:} (( exam.total_marks ))(% endif %)
+\hfill
+(% if exam.duration_mins %)\textbf{Time:} (( exam.duration_mins )) min(% endif %)
+\hfill \textbf{Paper ID:} (( paper_id_digits if paper_id_digits else '\\rule{2cm}{0.4pt}' ))\par\vspace{2pt}
+\noindent\rule{\linewidth}{0.8pt}
+\vspace{4pt}
+
+%% Name (for people, not machines)
+\noindent\textbf{Name:}\enspace\raisebox{-2mm}{\begin{tikzpicture}\draw[thick] (0,0) rectangle (0.8\linewidth,0.75cm);\end{tikzpicture}}
+
+\vspace{9pt}
+%% Roll number, section, date
+\noindent\textbf{Regn No:}\enspace\raisebox{-1.6mm}{\begin{tikzpicture}[baseline=0pt]
+  \draw[thick, step=0.6cm] (0,0) grid ( (( exam.roll_no_digits * 0.6 ))cm, 0.6cm );
+\end{tikzpicture}}\hfill
+\textbf{Section:}\enspace\rule{1.6cm}{0.4pt}
+
+\vspace{9pt}
+\noindent\textbf{Date:}\enspace\raisebox{-1.6mm}{\begin{tikzpicture}[baseline=0pt]\draw[thick, step=0.6cm] (0,0) grid (1.2cm, 0.6cm);\end{tikzpicture}}\raisebox{0.2ex}{\,/\,}\raisebox{-1.6mm}{\begin{tikzpicture}[baseline=0pt]\draw[thick, step=0.6cm] (0,0) grid (1.2cm, 0.6cm);\end{tikzpicture}}\raisebox{0.2ex}{\,/\,}\raisebox{-1.6mm}{\begin{tikzpicture}[baseline=0pt]\draw[thick, step=0.6cm] (0,0) grid (2.4cm, 0.6cm);\end{tikzpicture}}
+
+\vspace{9pt}
+\noindent\fbox{\parbox{\dimexpr\linewidth-2\fboxsep-2\fboxrule\relax}{\footnotesize\textbf{Instructions:} Fill each bubble completely with a dark pen or pencil. Only one answer per question.
+(% if paper_id_digits %)Fill the registration number bubbles in the answer strip on the right; the paper ID is pre-printed.(% else %)Fill the registration number and paper ID bubbles in the answer strip on the right.(% endif %)\ Do not write on the black frame.}}
+
+\vspace{10pt}
+
+%% ═══ Questions that fit beside the answer strip (page 1) ═══
+\begin{enumerate}[label=\textbf{Q\arabic*.},leftmargin=*,itemsep=11pt,parsep=0pt,topsep=0pt]
+(% for q in questions_p1 %)
+(( render_question(q) ))
+(% endfor %)
+\end{enumerate}
+\restoregeometry
+(% if questions_p2 %)
+%% ═══ Remaining questions: full text width, no answer strip ═══
+\noindent{\large\bfseries (( exam.institution_name | tex ))} --- (( exam.exam_title | tex ))%
+\hfill{\small Paper ID: (( paper_id_digits if paper_id_digits else '' ))}
+
+\vspace{2pt}\hrule\vspace{10pt}
+
+\begin{enumerate}[label=\textbf{Q\arabic*.},leftmargin=*,itemsep=12pt,parsep=0pt,topsep=0pt,%
+                  start=(( questions_p1 | length + 1 ))]
+(% for q in questions_p2 %)
+(( render_question(q) ))
+(% endfor %)
+\end{enumerate}
+(% endif %)
+(% else %)
+\mbox{}
+(% endif %)
+\end{document}
