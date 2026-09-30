@@ -1,0 +1,888 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>ScanExam</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#faf8f5">
+<meta name="description" content="Create OMR answer sheets, scan them with the camera and check marks.">
+
+<style>
+:root{
+  --bg:#faf8f5;--card:#ffffff;--ink:#1f2530;--mut:#6a6e78;--line:#e7e2d9;--line2:#f0ece5;
+  --pri:#22405f;--pri-h:#1a3450;--pri-weak:#eef1f5;
+  --ok:#2e6b4d;--ok-bg:#eaf3ed;--bad:#a1372f;--bad-bg:#f8ecea;--warn:#85601a;--warn-bg:#f8f1e1;
+  --serif:"Iowan Old Style","Palatino Linotype",Palatino,"Book Antiqua",Georgia,serif;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;font:15px/1.55 var(--sans);background:var(--bg);color:var(--ink);font-variant-numeric:tabular-nums;overscroll-behavior-y:none;-webkit-tap-highlight-color:transparent}
+button,input,select,textarea{font-family:inherit}
+img,video{max-width:100%}
+a{color:var(--pri)}
+h1,h2,h3{font-family:var(--serif);font-weight:600;letter-spacing:-.005em;color:var(--ink);margin:0}
+h1{font-size:28px;line-height:1.2;margin-bottom:6px}
+h2{font-size:18px;margin-bottom:12px}
+.sub{color:var(--mut);margin:0 0 26px;max-width:46em}
+.hint{color:var(--mut);font-size:13px;margin-top:6px}
+.err{color:var(--bad);margin:10px 0;white-space:pre-wrap;font-size:14px}
+.okm{color:var(--ok);margin:10px 0;font-size:14px}
+code{background:#f1ede6;padding:1px 5px;border-radius:4px;font-size:12.5px}
+.big{font-family:var(--serif);font-size:34px;font-weight:600;line-height:1.1}
+
+/* app shell */
+.app{display:flex;min-height:100vh}
+.side{width:236px;flex:none;background:var(--card);border-right:1px solid var(--line);padding:26px 14px 18px;display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
+.brand{font-family:var(--serif);font-size:21px;font-weight:600;padding:0 10px 2px;color:var(--ink)}
+.brandsub{font-size:12.5px;color:var(--mut);padding:0 10px 24px}
+.side nav{display:flex;flex-direction:column;gap:2px}
+.side nav button{display:block;width:100%;text-align:left;background:none;border:0;padding:9px 10px;border-radius:6px;font-size:14.5px;cursor:pointer;color:#3a404b}
+.side nav button:hover{background:#f6f3ee}
+.side nav button.on{background:var(--pri-weak);color:var(--pri);font-weight:600}
+.who{margin-top:auto;border-top:1px solid var(--line);padding:14px 10px 0;font-size:13.5px}
+.who b{display:block;font-weight:600}.who span{color:var(--mut);font-size:12.5px;text-transform:capitalize}
+.who button{margin-top:10px}
+.top{display:none}
+.main{flex:1;min-width:0;padding:38px 44px 60px;max-width:1120px}
+
+/* cards, tables, forms */
+.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:20px 22px;margin-bottom:16px}
+.card.rc{cursor:pointer;transition:border-color .15s}.card.rc:hover{border-color:#b9b2a4}
+.row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px 16px;align-items:end}
+.grid>div{display:flex;flex-direction:column;justify-content:flex-end}
+.grid>div>label{flex:1;display:flex;align-items:flex-end}
+label{display:block;font-size:13px;color:#3a404b;margin-bottom:5px;font-weight:600}
+input[type=text],input[type=number],input[type=email],input[type=password],input[type=date],select,textarea{width:100%;padding:9px 11px;border:1px solid #cfc9bd;border-radius:6px;font-size:14.5px;background:#fff;color:var(--ink)}
+input:focus,select:focus,textarea:focus{outline:2px solid #c3d0de;border-color:var(--pri)}
+textarea{min-height:64px;resize:vertical;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:13px;line-height:1.5}
+input[type=checkbox],input[type=radio]{accent-color:var(--pri)}
+table{width:100%;border-collapse:collapse}
+th,td{text-align:left;padding:10px 8px;border-bottom:1px solid var(--line2);font-size:14px}
+th{color:var(--mut);font-size:12px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;border-bottom:1px solid var(--line)}
+tr:last-child td{border-bottom:0}
+tr.clk{cursor:pointer}tr.clk:hover td{background:#faf8f5}
+button.b{background:var(--pri);color:#fff;border:1px solid var(--pri);border-radius:6px;padding:9px 16px;font-size:14px;font-weight:600;cursor:pointer}
+button.b:hover{background:var(--pri-h)}
+button.b.sec{background:#fff;color:var(--ink);border-color:#cfc9bd}
+button.b.sec:hover{background:#faf8f5}
+button.b.del{background:#fff;color:var(--bad);border-color:#e3c3bf;padding:4px 10px}
+button.b:disabled{opacity:.45;cursor:default}
+.pill{font-family:var(--sans);display:inline-block;padding:2px 9px;border-radius:4px;font-size:12px;font-weight:600;border:1px solid transparent}
+.pill.ready{background:var(--ok-bg);color:var(--ok)}.pill.generating{background:var(--warn-bg);color:var(--warn)}.pill.failed{background:var(--bad-bg);color:var(--bad)}
+.modalbg{position:fixed;inset:0;background:rgba(31,37,48,.45);z-index:60;display:flex;align-items:center;justify-content:center;padding:20px}
+.modal{background:#fff;border-radius:8px;max-width:460px;width:100%;padding:24px;border:1px solid var(--line)}
+.modal h2{margin-bottom:8px}
+button.b.danger{background:var(--bad);border-color:var(--bad);color:#fff}button.b.danger:hover{background:#862e27}
+details.promptbox{border:1px solid var(--line);border-radius:6px;padding:10px 14px;margin-bottom:12px;background:#fcfbf9}
+details.promptbox summary{cursor:pointer;font-weight:600;color:var(--pri)}
+.notice{background:var(--pri-weak);color:var(--pri);border:1px solid #d3dce7;border-radius:6px;padding:10px 14px;margin-bottom:16px;font-size:14px;display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+.notice.warn{background:var(--warn-bg);color:var(--warn);border-color:#e6d6b0}
+.notice button{background:none;border:0;color:inherit;cursor:pointer;font-size:18px;line-height:1;padding:0}
+.stat{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.chip{border-radius:4px;padding:4px 10px;font-weight:600;font-size:13px;background:#f1ede6;color:#3a404b}
+.chip.c{background:var(--ok-bg);color:var(--ok)}.chip.w{background:var(--bad-bg);color:var(--bad)}.chip.b{background:var(--pri-weak);color:var(--pri)}
+
+/* overview numbers */
+.figures{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--line);border-radius:8px;background:var(--card);margin-bottom:22px}
+.figure{padding:16px 20px;border-left:1px solid var(--line)}.figure:first-child{border-left:0}
+.figure .n{font-family:var(--serif);font-size:30px;font-weight:600;line-height:1.1}
+.figure .l{font-size:12.5px;color:var(--mut);margin-top:2px}
+.pagehead{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:22px}
+.pagehead .sub{margin:0}
+.lrow{display:flex;justify-content:space-between;gap:14px;align-items:center;padding:14px 0;border-bottom:1px solid var(--line2);cursor:pointer}
+.lrow:last-child{border-bottom:0}.lrow:hover .lt{color:var(--pri)}
+.lt{font-weight:600;font-size:15.5px}
+
+/* student review */
+.two{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:22px;align-items:start}
+.qa{border:1px solid var(--line);border-radius:8px;padding:14px;margin-bottom:12px;background:#fff}
+.qa .qt{font-weight:600;margin-bottom:8px}
+.qa .o{padding:6px 10px;border-radius:5px;margin:3px 0;border:1px solid transparent}
+.qa .o.ok{background:var(--ok-bg);border-color:#cfe3d6}.qa .o.no{background:var(--bad-bg);border-color:#ecc9c4}
+.qa .tag{font-size:12px;font-weight:700;margin-left:8px}
+.sheetimg{width:100%;border:1px solid var(--line);border-radius:6px;background:#fff}
+.legend span{display:inline-block;margin-right:12px}
+.dot{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:5px;vertical-align:-1px}
+.ans{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;margin-top:10px}
+.ans div{border:1px solid var(--line);border-radius:6px;padding:6px 10px}
+iframe{width:100%;height:760px;border:1px solid var(--line);border-radius:6px;margin-top:12px}
+
+/* public pages: intro + sign in */
+.pub{min-height:100vh;display:flex;flex-direction:column}
+.wrap{max-width:1080px;margin-left:auto;margin-right:auto;padding-left:28px;padding-right:28px;width:100%}
+.pnav{display:flex;justify-content:space-between;align-items:center;padding:22px 0;border-bottom:1px solid var(--line)}
+.pnav .brand{padding:0;font-size:23px}
+.pnav .links{display:flex;gap:10px;align-items:center}
+.hero{display:grid;grid-template-columns:1.15fr .85fr;gap:64px;padding:76px 0 64px;align-items:center}
+.display{font-family:var(--serif);font-size:46px;line-height:1.1;font-weight:600;letter-spacing:-.015em;margin:0 0 20px}
+.lead{font-size:18px;line-height:1.6;color:#3d434e;max-width:32em;margin:0 0 30px}
+.specimen-l{font-size:12.5px;color:var(--mut);margin-bottom:8px}
+.section{padding:48px 0;border-top:1px solid var(--line)}
+.section h2{font-size:24px;margin-bottom:26px}
+.steps{display:grid;grid-template-columns:repeat(4,1fr);gap:30px}
+.step .n{font-family:var(--serif);font-size:28px;color:var(--pri);line-height:1}
+.step h3{font-size:17px;margin:10px 0 6px}.step p{margin:0;color:#4a505b;font-size:14.5px}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:56px}
+.cols h3{font-size:19px;margin-bottom:12px}
+.cols ul{margin:0;padding:0;list-style:none}.cols li{padding:9px 0;border-bottom:1px solid var(--line2);color:#3d434e;font-size:15px}
+.cols li:last-child{border-bottom:0}
+.pfoot{margin-top:auto;border-top:1px solid var(--line);padding-top:22px;padding-bottom:22px;color:var(--mut);font-size:13px}
+.authwrap{display:grid;grid-template-columns:1fr 1fr;min-height:100vh}
+.authside{background:#f3efe8;border-right:1px solid var(--line);padding:48px 56px;display:flex;flex-direction:column}
+.authside .brand{padding:0;font-size:24px;cursor:pointer}
+.authside h1{font-size:32px;margin:auto 0 12px}
+.authside p{color:#4a505b;max-width:26em;margin:0 0 auto}
+.authmain{display:flex;align-items:center;justify-content:center;padding:40px 28px}
+.authbox{width:100%;max-width:380px}
+.seg{display:flex;border:1px solid #cfc9bd;border-radius:6px;overflow:hidden;margin-bottom:18px;background:#fff}
+.seg button{flex:1;border:0;background:#fff;padding:9px;font-size:14px;cursor:pointer;color:#3a404b}
+.seg button+button{border-left:1px solid #cfc9bd}
+.seg button.on{background:var(--pri);color:#fff;font-weight:600}
+.authbox .field{margin-bottom:14px}
+.switch{margin-top:16px;font-size:14px;color:var(--mut)}
+.switch a{cursor:pointer;font-weight:600}
+
+/* mark card (QR page + intro specimen) */
+.mcard{background:#fff;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.mcard .hd{padding:20px 22px;border-bottom:1px solid var(--line);background:#fcfbf9}
+.mcard .hd small{color:var(--mut);font-size:13px}
+.mcard .hd .t{font-family:var(--serif);font-size:24px;font-weight:600;line-height:1.2;margin-top:2px}
+.mcard .bd{padding:22px}
+.qstrip{display:flex;gap:5px;flex-wrap:wrap;margin-top:16px}
+.qstrip div{width:30px;height:30px;border-radius:5px;display:grid;place-items:center;color:#fff;font-weight:600;font-size:13px}
+.kv{width:100%;margin-top:16px}.kv td{padding:8px 0}.kv td:last-child{text-align:right;font-weight:600}
+
+@media(max-width:900px){.two{grid-template-columns:1fr}.hero{grid-template-columns:1fr;gap:36px;padding:44px 0 40px}.display{font-size:36px}.steps{grid-template-columns:1fr 1fr}.cols{grid-template-columns:1fr;gap:32px}.authwrap{grid-template-columns:1fr}.authside{display:none}}
+@media(max-width:800px){
+  body{font-size:15px}
+  input[type=text],input[type=number],input[type=email],input[type=password],input[type=date],textarea,select{font-size:16px;padding:11px 12px}
+  button.b{min-height:44px;padding:11px 16px}button.b.del{min-height:36px}
+  .app{display:block}
+  .top{display:flex;align-items:center;justify-content:space-between;gap:10px;background:var(--card);border-bottom:1px solid var(--line);padding:10px 16px;padding-top:calc(10px + env(safe-area-inset-top));position:sticky;top:0;z-index:20}
+  .top .brand{padding:0;font-size:19px}
+  .top button.b{min-height:36px;padding:6px 12px}
+  .side{position:fixed;left:0;right:0;bottom:0;top:auto;z-index:30;width:auto;height:auto;flex-direction:row;padding:6px 6px calc(6px + env(safe-area-inset-bottom));border-right:0;border-top:1px solid var(--line)}
+  .side .brand,.side .brandsub,.side .who{display:none}
+  .side nav{flex-direction:row;gap:4px;width:100%}
+  .side nav button{flex:1;text-align:center;padding:8px 2px;font-size:12.5px;min-height:46px;line-height:1.2}
+  .main{padding:20px 16px calc(96px + env(safe-area-inset-bottom));max-width:none}
+  h1{font-size:23px}.big{font-size:28px}
+  .card{padding:16px}
+  .figures{grid-template-columns:1fr 1fr}.figure:nth-child(3){border-left:0;border-top:1px solid var(--line)}.figure:nth-child(4){border-top:1px solid var(--line)}
+  table{display:block;overflow-x:auto;white-space:nowrap;max-width:100%}
+  .grid{grid-template-columns:1fr}
+  .wrap{padding:0 18px}.pnav{padding:16px 0}.steps{grid-template-columns:1fr}.display{font-size:32px}
+  .qa{padding:10px}iframe{height:70vh}
+}
+</style>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+</head>
+<body><div id="root"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+<script>
+const h = React.createElement;
+const {useState, useEffect, useRef} = React;
+
+async function api(path, opts = {}) {
+  const r = await fetch(path, Object.assign({credentials: "same-origin"}, opts));
+  if (!r.ok) {
+    let msg = r.statusText;
+    try {
+      const j = await r.json();
+      msg = Array.isArray(j.detail) ? j.detail.map(d => d.loc.slice(1).join(" > ") + ": " + d.msg).join("\n") : (j.detail || msg);
+    } catch (e) {}
+    throw new Error(msg);
+  }
+  return r;
+}
+const postJson = (path, body) => api(path, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)});
+
+function Field({label, children}) { return h("div", null, h("label", null, label), children); }
+function Text({label, value, onChange, type = "text", ...rest}) {
+  return h(Field, {label}, h("input", Object.assign({type, value: value ?? "", onChange: e => onChange(e.target.value)}, rest)));
+}
+
+/* ───────────── in-page camera (falls back to the phone's camera app when the browser blocks getUserMedia) ───────────── */
+function CameraModal({multi, onShot, onClose}) {
+  const video = useRef(null), stream = useRef(null), fallback = useRef(null);
+  const [err, setErr] = useState(""), [ready, setReady] = useState(false), [count, setCount] = useState(0);
+  useEffect(() => {
+    let dead = false;
+    (async () => {
+      try {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia)
+          throw new Error("This browser only allows the live camera on secure (https or localhost) pages.");
+        const s = await navigator.mediaDevices.getUserMedia({video: {facingMode: {ideal: "environment"}, width: {ideal: 2560}, height: {ideal: 1920}}, audio: false});
+        if (dead) { s.getTracks().forEach(t => t.stop()); return; }
+        stream.current = s; video.current.srcObject = s; await video.current.play(); setReady(true);
+      } catch (e) { setErr(e.message || String(e)); }
+    })();
+    return () => { dead = true; if (stream.current) stream.current.getTracks().forEach(t => t.stop()); };
+  }, []);
+  function snap() {
+    const v = video.current, c = document.createElement("canvas");
+    c.width = v.videoWidth; c.height = v.videoHeight; c.getContext("2d").drawImage(v, 0, 0);
+    c.toBlob(b => { onShot(new File([b], "scan_" + Date.now() + ".jpg", {type: "image/jpeg"})); setCount(n => n + 1); if (!multi) onClose(); }, "image/jpeg", 0.92);
+  }
+  const btn = {border: 0, borderRadius: 10, padding: "12px 18px", fontWeight: 700, fontSize: 15, cursor: "pointer"};
+  return h("div", {style: {position: "fixed", inset: 0, background: "#000", zIndex: 50, display: "flex", flexDirection: "column"}},
+    h("div", {style: {flex: 1, position: "relative", minHeight: 0}},
+      h("video", {ref: video, playsInline: true, muted: true, style: {width: "100%", height: "100%", objectFit: "contain", background: "#000"}}),
+      ready && h("div", {style: {position: "absolute", inset: "6% 12%", border: "2px dashed rgba(255,255,255,.7)", borderRadius: 8, pointerEvents: "none"}}),
+      !ready && !err && h("div", {style: {position: "absolute", inset: 0, display: "grid", placeItems: "center", color: "#fff"}}, "Starting camera..."),
+      err && h("div", {style: {position: "absolute", inset: 0, display: "grid", placeItems: "center", padding: 24, color: "#fff", textAlign: "center"}},
+        h("div", null, h("div", {style: {marginBottom: 14}}, err),
+          h("input", {ref: fallback, type: "file", accept: "image/*", capture: "environment", hidden: true, onChange: e => { Array.from(e.target.files).forEach(onShot); onClose(); }}),
+          h("button", {style: Object.assign({}, btn, {background: "#22405f", color: "#fff"}), onClick: () => fallback.current.click()}, "Open the camera app")))),
+    h("div", {style: {padding: 16, display: "flex", gap: 12, justifyContent: "center", alignItems: "center", background: "#111"}},
+      h("button", {style: Object.assign({}, btn, {background: "#374151", color: "#fff"}), onClick: onClose}, multi && count ? "Done (" + count + ")" : "Cancel"),
+      h("button", {disabled: !ready, "aria-label": "Take photo", onClick: snap, style: {width: 68, height: 68, borderRadius: "50%", border: "5px solid #fff", background: ready ? "#ef4444" : "#6b7280", cursor: "pointer"}}),
+      multi && h("div", {style: {color: "#fff", minWidth: 90, fontSize: 13}}, count ? count + " page(s) added" : "Take a photo of each page")));
+}
+
+/* ───────────── auth ───────────── */
+function Brand({onClick}) { return h("div", {className: "brand", onClick, style: onClick ? {cursor: "pointer"} : null}, "ScanExam"); }
+
+function Landing({go}) {
+  const sample = {institution: "Sample University", subject: "Mathematics", exam: "Mid-term test", exam_date: "2026-02-12", status: "ready",
+    score: 8, total: 10, counts: {correct: 8, wrong: 1, blank: 1, invalid: 0}, student: "A. Student", registration: "12345", paper_id: "482913",
+    checked_at: "2026-02-13", questions: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => ({number: n, status: n === 1 ? "wrong" : n === 7 ? "blank" : "correct"}))};
+  const steps = [["Write the paper", "Paste your questions as plain text. Mathematics is typeset for you, and each student can get a different selection."],
+    ["Print the sheets", "Every student receives a personal sheet with their own paper ID and a QR code."],
+    ["Scan the answers", "Upload a class PDF, or photograph the sheets one after another. Each page is matched to its student."],
+    ["Release the marks", "Check the results, export them to a spreadsheet, and publish the marks when you are ready."]];
+  return h("div", {className: "pub"},
+    h("div", {className: "wrap"}, h("div", {className: "pnav"}, h(Brand),
+      h("div", {className: "links"}, h("button", {className: "b sec", onClick: () => go("#login")}, "Log in"), h("button", {className: "b", onClick: () => go("#signup")}, "Create account")))),
+    h("div", {className: "wrap"}, h("div", {className: "hero"},
+      h("div", null, h("h1", {className: "display"}, "Paper exams, marked the same day."),
+        h("p", {className: "lead"}, "ScanExam turns a set of multiple-choice questions into printed answer sheets, reads the filled bubbles from a scanner or a phone camera, and gives every student a clear breakdown of their marks."),
+        h("div", {className: "row"}, h("button", {className: "b", onClick: () => go("#signup")}, "Create a teacher account"), h("button", {className: "b sec", onClick: () => go("#login")}, "Student log in"))),
+      h("div", null, h("div", {className: "specimen-l"}, "What a student sees after scanning the QR code on their sheet"), h(MarkCard, {c: sample, sample: true})))),
+    h("div", {className: "wrap"}, h("div", {className: "section"}, h("h2", null, "How it works"),
+      h("div", {className: "steps"}, steps.map(([t, p], i) => h("div", {className: "step", key: t}, h("div", {className: "n"}, i + 1), h("h3", null, t), h("p", null, p)))))),
+    h("div", {className: "wrap"}, h("div", {className: "section"}, h("div", {className: "cols"},
+      h("div", null, h("h3", null, "For teachers"), h("ul", null,
+        ["Papers of 10 or 15 questions, from text you paste in", "A unique paper ID and QR code on every student's sheet", "Grade a whole class from one PDF, or scan page by page with the camera",
+          "Results as a spreadsheet, with each answer marked right or wrong", "Marks stay hidden until you release them"].map(x => h("li", {key: x}, x)))),
+      h("div", null, h("h3", null, "For students"), h("ul", null,
+        ["See your marks and every question with the correct answer", "View your own answer sheet with each bubble marked", "Check your sheet yourself by scanning it with your phone",
+          "Open your result directly from the QR code on the sheet", "Sign in with your student ID"].map(x => h("li", {key: x}, x))))))),
+    h("div", {className: "wrap pfoot"}, "ScanExam - optical mark grading for schools and colleges."));
+}
+
+function AuthPage({mode, onUser, go, notice}) {
+  const register = mode === "register";
+  const [f, setF] = useState({name: "", email: "", password: "", role: "teacher", invite: "", reg_no: ""});
+  const [err, setErr] = useState("");
+  const set = k => v => setF(Object.assign({}, f, {[k]: v}));
+  async function submit(e) {
+    e.preventDefault(); setErr("");
+    try {
+      const r = await (register ? postJson("/api/register", f) : postJson("/api/login", {email: f.email, password: f.password}));
+      onUser(await r.json());
+    } catch (x) { setErr(x.message); }
+  }
+  const teacher = f.role === "teacher";
+  return h("div", {className: "authwrap"},
+    h("div", {className: "authside"}, h(Brand, {onClick: () => go("")}),
+      h("h1", null, register ? "Create your account" : "Welcome back"),
+      h("p", null, register ? "Teachers set up exams and mark them. Students use their student ID to see their results." : "Sign in to set up exams, check answer sheets, or see your results.")),
+    h("div", {className: "authmain"}, h("form", {className: "authbox", onSubmit: submit},
+      h("div", {className: "pagehead", style: {display: "block", marginBottom: 18}}, h("h1", {style: {fontSize: 26}}, register ? "Create account" : "Log in"),
+        h("div", {className: "hint", style: {marginTop: 0}}, h("a", {onClick: () => go(""), style: {cursor: "pointer"}}, "< Back to start"))),
+      notice && h("div", {className: "notice"}, h("span", null, notice)),
+      register && h("div", {className: "seg"}, ["teacher", "student"].map(r => h("button", {type: "button", key: r, className: f.role === r ? "on" : "", onClick: () => set("role")(r)}, r === "teacher" ? "I am a teacher" : "I am a student"))),
+      register && h("div", {className: "field"}, h(Text, {label: "Full name", value: f.name, onChange: set("name")})),
+      !register && h("div", {className: "field"}, h(Text, {label: "Email or student ID", value: f.email, onChange: set("email")})),
+      register && teacher && h("div", {className: "field"}, h(Text, {label: "Email", type: "email", value: f.email, onChange: set("email")})),
+      register && !teacher && h("div", {className: "field"}, h(Text, {label: "Student ID (5 digits)", value: f.reg_no, onChange: set("reg_no")}),
+        h("div", {className: "hint"}, "Use the same digits you fill in as the registration number on your answer sheet.")),
+      h("div", {className: "field"}, h(Text, {label: "Password", type: "password", value: f.password, onChange: set("password")}),
+        register && teacher && h("div", {className: "hint"}, "At least 8 characters.")),
+      register && teacher && h("div", {className: "field"}, h(Text, {label: "Invite code (if your school gave you one)", value: f.invite, onChange: set("invite")})),
+      err && h("div", {className: "err"}, err),
+      h("button", {className: "b", type: "submit", style: {width: "100%", marginTop: 4}}, register ? "Create account" : "Log in"),
+      h("div", {className: "switch"}, register ? "Already have an account? " : "New here? ", h("a", {onClick: () => go(register ? "#login" : "#signup")}, register ? "Log in" : "Create an account")))));
+}
+
+/* ───────────── question generation form ───────────── */
+const EXAMPLE = `What is the capital of France?
+A) Berlin
+B) Paris
+C) Rome
+D) Madrid
+Answer: B
+
+Which data structure is LIFO?
+A) Queue
+B) Stack
+C) Array
+D) Graph
+Answer: B`;
+
+/* Mirrors the server parser (app/textconv.py): blank line between questions, options A) B) C) D), "Answer: X" line. */
+const ANSWER_LINE = /^[ \t]*[*_]*(?:answer|ans|correct(?:[ \t]+answer)?|key)[*_]*[ \t]*[:=\-][ \t]*[*_]*\(?([A-Da-d])(?![A-Za-z])[^\n]*$/gim;
+const NUM_PREFIX = /^\s*(?:q(?:uestion)?[ \t]*)?\d+[ \t]*[.):][ \t]+/i;
+const CONTINUATION = /^\s*(?:\*?\(?[Aa][.)][ \t]|[*_]*(?:answer|ans|correct|key)[*_]*[ \t]*[:=\-])/i;
+
+function parseBlock(t) {
+  const marks = [...t.matchAll(/(?<!\S)(\*?)\(?([A-Da-d])[.)]\s+/g)];
+  for (let i = 0; i < marks.length; i++) {
+    if (marks[i][2].toUpperCase() !== "A") continue;
+    const chain = [marks[i]]; let want = 1;
+    for (const m of marks.slice(i + 1)) if (m[2].toUpperCase() === "ABCD"[want] && chain.push(m) && ++want === 4) break;
+    if (chain.length === 4) {
+      const question = t.slice(0, chain[0].index).trim();
+      if (!question) throw new Error("write the question before the options");
+      const opts = chain.map((m, k) => t.slice(m.index + m[0].length, k < 3 ? chain[k + 1].index : t.length).trim().replace(/\s+/g, " "));
+      if (opts.some(o => !o)) throw new Error("an option is empty");
+      const starred = chain.map((m, k) => m[1] ? k : -1).filter(k => k >= 0);
+      return {question, options: opts, starred: starred.length === 1 ? starred[0] : null};
+    }
+  }
+  throw new Error("could not find options A) B) C) D) in this order after the question");
+}
+
+function parseBulk(text) {
+  const blocks = [];
+  for (let raw of text.replace(/\*\*/g, "").replace(/\r\n/g, "\n").trim().split(/\n\s*\n/)) {
+    raw = raw.trim();
+    if (!raw) continue;
+    if (blocks.length && CONTINUATION.test(raw)) blocks[blocks.length - 1] += "\n" + raw; else blocks.push(raw);
+  }
+  const questions = [], errors = [];
+  blocks.forEach((block, i) => {
+    try {
+      const answers = [...block.matchAll(ANSWER_LINE)].map(m => m[1]);
+      const p = parseBlock(block.replace(NUM_PREFIX, "").replace(ANSWER_LINE, "").trim());
+      if (answers.length > 1) throw new Error("more than one Answer line");
+      const correct = answers.length ? "ABCD".indexOf(answers[0].toUpperCase()) : p.starred;
+      if (correct === null || correct < 0) throw new Error("no correct answer (add a line like 'Answer: B')");
+      questions.push({question: p.question, options: p.options, correct});
+    } catch (e) { errors.push("Question " + (i + 1) + ' ("' + block.replace(/\s+/g, " ").slice(0, 40) + '..."): ' + e.message); }
+  });
+  return {questions, errors};
+}
+
+function copyText(text, el) {
+  if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(text);
+  el.focus(); el.select(); document.execCommand("copy"); return Promise.resolve();       // plain http pages cannot use the clipboard API
+}
+
+function promptFor(topic, count, level) {
+  return `Write ${count} multiple-choice questions about "${topic || "[TOPIC]"}" for ${level || "[CLASS / LEVEL]"}.
+
+Follow this format exactly. Use plain text only: no markdown, no bold, no bullets, no headings, and no comments before or after the questions.
+
+- Put ONE blank line between questions.
+- Write each question on its own line(s). Do not number the questions.
+- Then write exactly four options, each on its own line, as A) B) C) D).
+- Then one line giving the correct option, like:  Answer: B
+- Only one option is correct. Spread the correct answers across A, B, C and D.
+- Write any mathematics between dollar signs, for example $x^2$, $\\frac{1}{2}$ or $\\sqrt{16}$. Do not use any other LaTeX.
+
+Example of the format:
+
+What is the capital of France?
+A) Berlin
+B) Paris
+C) Rome
+D) Madrid
+Answer: B
+
+What is $2^3$?
+A) 6
+B) 8
+C) 9
+D) 16
+Answer: B
+
+Now write the ${count} questions.`;
+}
+
+function QuestionGeneration({onCreated}) {
+  const [d, setD] = useState({institution_name: "", course_name: "", faculty_name: "", exam_title: "",
+    total_marks: "", duration_mins: "", exam_date: "", num_students: 1, shuffle_questions: true, shuffle_options: false});
+  const [qtext, setQtext] = useState(""), [pTopic, setPTopic] = useState(""), [pCount, setPCount] = useState(""), [pLevel, setPLevel] = useState(""), [copied, setCopied] = useState(false);
+  const promptBox = useRef(null);
+  const [numQ, setNumQ] = useState(10);
+  const [err, setErr] = useState("");
+  const [busy, setBusy] = useState("");
+  const [preview, setPreview] = useState(null);
+  const set = k => v => setD(Object.assign({}, d, {[k]: v}));
+  const parsed = qtext.trim() ? parseBulk(qtext) : null;
+
+  function payload() {
+    const num = v => (v === "" || v == null) ? null : Number(v);
+    return Object.assign({}, d, {total_marks: num(d.total_marks) ?? numQ, duration_mins: num(d.duration_mins),
+      exam_date: d.exam_date || null, num_students: Number(d.num_students), num_questions: numQ, questions_text: qtext});
+  }
+  async function doPreview() {
+    setBusy("preview"); setErr("");
+    try {
+      const r = await postJson("/api/exams/preview", payload());
+      if (preview) URL.revokeObjectURL(preview);
+      setPreview(URL.createObjectURL(await r.blob()));
+    } catch (x) { setErr(x.message); }
+    setBusy("");
+  }
+  async function generate() {
+    setBusy("gen"); setErr("");
+    try {
+      const r = await postJson("/api/exams", payload());
+      onCreated((await r.json()).id);
+    } catch (x) { setErr(x.message); setBusy(""); }
+  }
+
+  return h("div", null,
+    h("h1", null, "New exam"),
+    h("p", {className: "sub"}, "Fill in the exam details and questions. One answer sheet (own paper ID and QR code) is generated per student."),
+    h("div", {className: "card"}, h("h2", null, "Exam details"),
+      h("div", {className: "grid"},
+        h(Text, {label: "University / institution name", value: d.institution_name, onChange: set("institution_name")}),
+        h(Text, {label: "Course name", value: d.course_name, onChange: set("course_name")}),
+        h(Text, {label: "Course instructor (optional)", value: d.faculty_name, onChange: set("faculty_name")}),
+        h(Text, {label: "Exam title", value: d.exam_title, onChange: set("exam_title")}),
+        h(Text, {label: "Max marks", type: "number", placeholder: "Same as number of questions", value: d.total_marks, onChange: set("total_marks")}),
+        h(Text, {label: "Duration (minutes)", type: "number", placeholder: "e.g. 30", value: d.duration_mins, onChange: set("duration_mins")}),
+        h(Text, {label: "Exam date", type: "date", value: d.exam_date, onChange: set("exam_date")})),
+      h("div", {className: "hint"}, "The exam date is shown to students with their results. Max marks and duration appear on the printed paper.")),
+    h("div", {className: "card"}, h("h2", null, "Students"),
+      h("div", {className: "grid"},
+        h(Text, {label: "Number of students (1-500)", type: "number", min: 1, max: 500, value: d.num_students, onChange: set("num_students")})),
+      h("div", {className: "row", style: {marginTop: 12}},
+        h("label", {style: {display: "flex", gap: 6, alignItems: "center", margin: 0}},
+          h("input", {type: "checkbox", checked: d.shuffle_questions, onChange: e => set("shuffle_questions")(e.target.checked)}), "Different question order per student"),
+        h("label", {style: {display: "flex", gap: 6, alignItems: "center", margin: 0}},
+          h("input", {type: "checkbox", checked: d.shuffle_options, onChange: e => set("shuffle_options")(e.target.checked)}), "Shuffle options (A-D) per student")),
+      h("div", {className: "hint"}, "Each student gets a unique 6-digit paper ID (pre-printed on the OMR strip) and a QR code. The answer key is stored per paper ID.")),
+    h("div", {className: "card"}, h("h2", null, "Questions"),
+      h("div", {className: "grid", style: {marginBottom: 12}},
+        h(Field, {label: "Questions on each sheet"},
+          h("select", {value: numQ, onChange: e => setNumQ(Number(e.target.value)), style: {width: "100%", padding: 8}},
+            [10, 15].map(n => h("option", {key: n, value: n}, n))))),
+      h("div", {className: "hint", style: {marginBottom: 10}}, "Paste all your questions below. If you paste more than the sheet holds, each student gets a different random selection."),
+      h("details", {className: "promptbox"}, h("summary", null, "Need questions? Copy a ready-made prompt for an AI assistant"),
+        h("p", {className: "hint", style: {marginTop: 8}}, "Fill in the three boxes, copy the prompt into ChatGPT, Gemini, Claude or similar, then paste the answer into the box below."),
+        h("div", {className: "grid", style: {marginBottom: 10}},
+          h(Text, {label: "Topic", placeholder: "e.g. Newton's laws of motion", value: pTopic, onChange: setPTopic}),
+          h(Text, {label: "How many questions", type: "number", placeholder: String(numQ), value: pCount, onChange: setPCount}),
+          h(Text, {label: "Class / level", placeholder: "e.g. Grade 10, first-year engineering", value: pLevel, onChange: setPLevel})),
+        h("textarea", {ref: promptBox, readOnly: true, style: {minHeight: 230}, value: promptFor(pTopic, pCount || numQ, pLevel)}),
+        h("div", {className: "row", style: {marginTop: 8}},
+          h("button", {className: "b", onClick: () => copyText(promptFor(pTopic, pCount || numQ, pLevel), promptBox.current).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); })}, copied ? "Copied" : "Copy prompt"),
+          h("span", {className: "hint", style: {margin: 0}}, "Always read the questions and answers before you print them."))),
+      h("div", {className: "hint", style: {margin: "10px 0 8px"}}, "Format: one blank line between questions; options A) B) C) D); the correct one on a line like ", h("code", null, "Answer: B"), ". Math between dollar signs, e.g. ", h("code", null, "$x^2$"), "."),
+      h("textarea", {value: qtext, placeholder: EXAMPLE, style: {minHeight: 380}, onChange: e => setQtext(e.target.value)}),
+      h("div", {className: "row", style: {marginTop: 8}}, h("button", {className: "b sec", onClick: () => setQtext(EXAMPLE)}, "Insert example")),
+      parsed && h("div", {style: {marginTop: 10}},
+        h("div", {className: parsed.errors.length || parsed.questions.length < numQ ? "err" : "okm", style: {margin: 0}},
+          parsed.questions.length + " question(s) found" + (parsed.errors.length ? ", " + parsed.errors.length + " with problems" : "") +
+          (parsed.questions.length < numQ ? " - need at least " + numQ : parsed.questions.length > numQ ? " - each student gets " + numQ + " random ones" : "")),
+        parsed.errors.slice(0, 5).map((m, i) => h("div", {key: i, className: "err", style: {margin: "4px 0", fontSize: 13}}, m)),
+        parsed.errors.length > 5 && h("div", {className: "hint"}, "... and " + (parsed.errors.length - 5) + " more"))),
+    err && h("div", {className: "err"}, err),
+    h("div", {className: "row"},
+      h("button", {className: "b sec", disabled: !!busy, onClick: doPreview}, busy === "preview" ? "Building preview..." : "Preview sheet"),
+      h("button", {className: "b", disabled: !!busy, onClick: generate}, busy === "gen" ? "Starting..." : "Generate sheets for " + d.num_students + " student(s)")),
+    preview && h("iframe", {src: preview, title: "Sheet preview"}));
+}
+
+/* ───────────── exam list / detail ───────────── */
+function ExamList({open}) {
+  const [rows, setRows] = useState(null);
+  useEffect(() => { api("/api/exams").then(r => r.json()).then(setRows).catch(() => setRows([])); }, []);
+  return h("div", null, h("div", {className: "pagehead"}, h("div", null, h("h1", null, "Exams"), h("p", {className: "sub"}, "Every exam you have created."))),
+    h("div", {className: "card"}, rows === null ? h("div", {className: "hint"}, "Loading...") : rows.length === 0 ? h("div", null, "No exams yet. Choose New exam to create one.") :
+      rows.map(e => h("div", {className: "lrow", key: e.id, onClick: () => open(e.id)},
+        h("div", {style: {minWidth: 0}}, h("div", {className: "lt"}, e.title),
+          h("div", {className: "hint", style: {marginTop: 2}}, e.course + " - " + e.num_questions + " questions - " + e.num_students + " students")),
+        h("div", {style: {textAlign: "right", flex: "none"}}, e.status !== "ready" ? h("span", {className: "pill " + e.status}, e.status) :
+          h("div", null, h("div", {style: {fontWeight: 600}}, e.scanned + " of " + e.num_students + " checked"),
+            h("div", {className: "hint", style: {marginTop: 0, color: e.marks_released ? "var(--ok)" : "var(--mut)"}}, e.marks_released ? "Marks released" : "Marks hidden")))))));
+}
+
+function GradePages({examId, onDone}) {
+  const [queue, setQueue] = useState([]);           // {file, thumb}
+  const [job, setJob] = useState(null), [items, setItems] = useState([]), [err, setErr] = useState("");
+  const pick = useRef(null), [camOpen, setCamOpen] = useState(false), [replace, setReplace] = useState(false);
+  const add = files => setQueue(q => q.concat(Array.from(files || []).map(f => ({file: f, thumb: f.type.startsWith("image/") ? URL.createObjectURL(f) : null}))));
+  const remove = i => setQueue(q => q.filter((_, j) => j !== i));
+  const running = job && job.status === "running";
+
+  async function start() {
+    setErr(""); setItems([]);
+    try {
+      const fd = new FormData();
+      queue.forEach(q => fd.append("files", q.file, q.file.name));
+      fd.append("replace", replace ? "true" : "false");
+      const r = await (await api("/api/exams/" + examId + "/scan_batch", {method: "POST", body: fd})).json();
+      setJob({id: r.job, status: "running", total: r.total, done: 0}); setQueue([]);
+    } catch (x) { setErr(x.message); }
+  }
+  useEffect(() => {
+    if (!running) return;
+    const t = setInterval(async () => {
+      try {
+        const j = await (await api("/api/exams/" + examId + "/scan_batch/" + job.id)).json();
+        setItems(j.items); setJob(old => Object.assign({}, old, {status: j.status, done: j.done, total: j.total}));
+        if (j.status === "finished") onDone();
+      } catch (x) { setErr(x.message); }
+    }, 1000);
+    return () => clearInterval(t);
+  }, [running, job && job.id]);
+
+  return h("div", {className: "card"}, h("h2", null, "Grade answer sheets"),
+    h("p", {className: "hint", style: {marginTop: 0}}, "Upload one PDF containing all scanned sheets (one student per page), or scan pages with the camera. Add as many pages as you like, then check them all at once."),
+    camOpen && h(CameraModal, {multi: true, onShot: f => add([f]), onClose: () => setCamOpen(false)}),
+    h("input", {ref: pick, type: "file", accept: ".pdf,image/*", multiple: true, hidden: true, onChange: e => { add(e.target.files); e.target.value = ""; }}),
+    h("div", {className: "row"},
+      h("button", {className: "b sec", onClick: () => pick.current.click(), disabled: running}, "Upload PDF / images"),
+      h("button", {className: "b sec", onClick: () => setCamOpen(true), disabled: running}, "Scan a page"),
+      h("button", {className: "b", onClick: start, disabled: !queue.length || running}, queue.length ? "Check " + queue.length + " item" + (queue.length > 1 ? "s" : "") : "Check")),
+    queue.length > 0 && h("div", {style: {display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12}},
+      queue.map((q, i) => h("div", {key: i, style: {border: "1px solid var(--line)", borderRadius: 8, padding: 6, width: 110, textAlign: "center", fontSize: 12}},
+        q.thumb ? h("img", {src: q.thumb, style: {width: "100%", height: 90, objectFit: "cover", borderRadius: 4}}) : h("div", {style: {height: 90, display: "grid", placeItems: "center", background: "#eef1f6", borderRadius: 4}}, "PDF"),
+        h("div", {style: {overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap"}}, q.file.name),
+        h("button", {className: "b del", style: {marginTop: 4}, onClick: () => remove(i)}, "Remove")))),
+    queue.length > 0 && h("div", {className: "hint", style: {marginTop: 8}}, "Tap 'Scan a page' again to add another page before checking."),
+    h("label", {style: {display: "flex", gap: 8, alignItems: "center", fontWeight: 400, marginTop: 12, marginBottom: 0}},
+      h("input", {type: "checkbox", checked: replace, onChange: e => setReplace(e.target.checked), disabled: running}), "Check again and replace results that were already checked"),
+    err && h("div", {className: "err"}, err),
+    job && h("div", {style: {marginTop: 14}},
+      h("div", {style: {height: 10, background: "#e5e9f0", borderRadius: 99, overflow: "hidden"}}, h("div", {style: {height: "100%", width: pct(job.done, job.total) + "%", background: "var(--pri)", transition: "width .3s"}})),
+      h("div", {className: "hint"}, (running ? "Checking... " : "Done: ") + job.done + " / " + job.total + " page(s)" +
+        (!running ? " - " + items.filter(i => i.ok).length + " saved" + (items.some(i => i.skipped) ? ", " + items.filter(i => i.skipped).length + " already processed" : "") + ", " + items.filter(i => !i.ok && !i.skipped).length + " not saved" : "")),
+      !running && items.some(i => i.skipped) && h("div", {className: "notice", style: {marginTop: 10, marginBottom: 0}},
+        h("span", null, items.filter(i => i.skipped).length + " of these sheets " + (items.filter(i => i.skipped).length === 1 ? "was" : "were") + " already processed, so " + (items.filter(i => i.skipped).length === 1 ? "it was" : "they were") + " skipped and their earlier results are unchanged. To check them again, tick \"Check again and replace\" and upload the files once more.")),
+      !running && h("div", {style: {marginTop: 8}}, h("a", {href: "/api/exams/" + examId + "/scan_batch/" + job.id + "/results.csv"}, h("button", {className: "b sec"}, "Download this upload (CSV)"))),
+      items.length > 0 && h("div", {style: {maxHeight: 360, overflow: "auto", marginTop: 8}}, h("table", null,
+        h("thead", null, h("tr", null, ["Page", "Paper ID", "Regn no.", "Score", "Right / wrong", "Note"].map(x => h("th", {key: x}, x)))),
+        h("tbody", null, items.map((it, i) => h("tr", {key: i},
+          h("td", null, it.page), h("td", null, it.paper_id || "-"), h("td", null, it.registration || "-"),
+          h("td", null, it.ok || it.skipped ? h("b", null, it.score + " / " + it.total) : h("span", {style: {color: "var(--bad)"}}, "not saved")),
+          h("td", {style: {fontSize: 12}}, it.ok && it.counts ? h("span", null, h("span", {style: {color: "var(--ok)"}}, it.counts.correct + " right"), " / ", h("span", {style: {color: "var(--bad)"}}, it.counts.wrong + " wrong"), it.counts.blank ? " / " + it.counts.blank + " blank" : "") : ""),
+          h("td", {style: {fontSize: 12, color: it.skipped ? "var(--mut)" : it.ok && !it.needs_review ? "var(--ok)" : "var(--bad)"}}, it.skipped ? "Already processed - skipped" : it.ok ? (it.needs_review ? "Saved - needs review: " + it.flags.join("; ") : "Saved") : it.error))))))));
+}
+
+function ExamResults({examId, refresh, onOpen}) {
+  const [d, setD] = useState(null);
+  useEffect(() => { api("/api/exams/" + examId + "/results").then(r => r.json()).then(setD).catch(() => {}); }, [examId, refresh]);
+  if (!d) return null;
+  return h("div", {className: "card"},
+    h("div", {className: "row", style: {justifyContent: "space-between"}}, h("h2", {style: {margin: 0}}, "Results (" + d.scanned + " of " + d.sheets + " sheets checked)"),
+      h("a", {href: "/api/exams/" + examId + "/results.csv"}, h("button", {className: "b"}, "Download all results (CSV)"))),
+    d.rows.length === 0 ? h("div", {className: "hint", style: {marginTop: 8}}, "Nothing checked yet.") :
+    h("div", {style: {maxHeight: 420, overflow: "auto"}}, h("table", null,
+      h("thead", null, h("tr", null, ["Paper ID", "Regn no.", "Student", "Score", "Right / wrong", "Note", ""].map(x => h("th", {key: x}, x)))),
+      h("tbody", null, d.rows.map(r => h("tr", {key: r.id, className: "clk", onClick: () => onOpen(r.id)}, h("td", null, h("b", null, r.paper_id)), h("td", null, r.registration), h("td", null, r.student || "-"),
+        h("td", null, h("b", null, r.score + " / " + r.total)),
+        h("td", {style: {fontSize: 12}}, h("span", {style: {color: "var(--ok)"}}, r.counts.correct + " right"), " / ", h("span", {style: {color: "var(--bad)"}}, r.counts.wrong + " wrong"), r.counts.blank ? " / " + r.counts.blank + " blank" : ""),
+        h("td", {style: {fontSize: 12, color: "var(--bad)"}}, r.needs_review ? "needs review" : ""),
+        h("td", {style: {textAlign: "right"}}, h("span", {style: {color: "var(--pri)", fontWeight: 600, fontSize: 13}}, "View details >"))))))));
+}
+
+function ReleaseToggle({exam, onChange}) {
+  const [busy, setBusy] = useState(false);
+  async function flip() {
+    setBusy(true);
+    try { onChange(await (await api("/api/exams/" + exam.id + "/release", {method: "PUT", headers: {"Content-Type": "application/json"}, body: JSON.stringify({released: !exam.marks_released})})).json()); } catch (x) {}
+    setBusy(false);
+  }
+  const on = exam.marks_released;
+  return h("div", {className: "card row", style: {justifyContent: "space-between"}},
+    h("div", null, h("h2", {style: {margin: 0}}, "Release marks"),
+      h("div", {className: "hint"}, on ? "Students can see their marks (student portal and the QR code card)." : "Marks are hidden. Students and QR code scans cannot see them yet.")),
+    h("button", {onClick: flip, disabled: busy, "aria-pressed": on, style: {width: 64, height: 34, borderRadius: 99, border: 0, cursor: "pointer", position: "relative", background: on ? "var(--ok)" : "#c5ccd8"}},
+      h("span", {style: {position: "absolute", top: 3, left: on ? 33 : 3, width: 28, height: 28, borderRadius: "50%", background: "#fff", transition: "left .2s"}})));
+}
+
+function DeleteExam({exam, onClose, onDeleted}) {
+  const [text, setText] = useState(""), [busy, setBusy] = useState(false), [err, setErr] = useState("");
+  const ok = text.trim().toLowerCase() === "delete";
+  async function go() {
+    setBusy(true); setErr("");
+    try { await api("/api/exams/" + exam.id + "?confirm=delete", {method: "DELETE"}); onDeleted(); }
+    catch (x) { setErr(x.message); setBusy(false); }
+  }
+  return h("div", {className: "modalbg", onClick: e => { if (e.target === e.currentTarget && !busy) onClose(); }},
+    h("div", {className: "modal", role: "dialog", "aria-modal": "true"},
+      h("h2", null, "Delete this exam?"),
+      h("p", {style: {margin: "0 0 10px"}}, h("b", null, exam.title), " - " + exam.course),
+      h("p", {className: "hint", style: {marginTop: 0, color: "var(--ink)"}},
+        "This permanently removes the exam, its " + exam.num_students + " answer sheets and QR links, and all " + exam.scanned + " checked result" + (exam.scanned === 1 ? "" : "s") +
+        ". Students will no longer see their marks for it. This cannot be undone."),
+      h("label", {htmlFor: "delconfirm"}, "Type delete to confirm"),
+      h("input", {id: "delconfirm", type: "text", value: text, autoFocus: true, autoComplete: "off", onChange: e => setText(e.target.value), onKeyDown: e => { if (e.key === "Enter" && ok && !busy) go(); }}),
+      err && h("div", {className: "err"}, err),
+      h("div", {className: "row", style: {marginTop: 16, justifyContent: "flex-end"}},
+        h("button", {className: "b sec", onClick: onClose, disabled: busy}, "Cancel"),
+        h("button", {className: "b danger", onClick: go, disabled: !ok || busy}, busy ? "Deleting..." : "Delete exam"))));
+}
+
+function ExamDetail({id, back, initialResult}) {
+  const [e, setE] = useState(null), [refresh, setRefresh] = useState(0), [selected, setSelected] = useState(initialResult || null), [deleting, setDeleting] = useState(false);
+  useEffect(() => {
+    let stop = false, t;
+    const load = () => api("/api/exams/" + id).then(r => r.json()).then(j => { if (stop) return; setE(j); if (j.status === "generating") t = setTimeout(load, 1500); }).catch(() => {});
+    load();
+    return () => { stop = true; clearTimeout(t); };
+  }, [id]);
+  if (!e) return h("div", null, "Loading...");
+  if (selected) return h(ResultDetail, {base: "/api/exams/" + id + "/results/" + selected, teacher: true, backLabel: "< Back to " + e.title,
+    back: () => { setSelected(null); setRefresh(n => n + 1); }});
+  return h("div", null,
+    deleting && h(DeleteExam, {exam: e, onClose: () => setDeleting(false), onDeleted: back}),
+    h("div", {className: "row", style: {justifyContent: "space-between", marginBottom: 12}},
+      h("button", {className: "b sec", onClick: back}, "< Back"),
+      e.status !== "generating" && h("button", {className: "b del", onClick: () => setDeleting(true)}, "Delete exam")),
+    h("h1", null, e.title, " ", h("span", {className: "pill " + e.status}, e.status)),
+    h("p", {className: "sub"}, e.course + " - " + e.num_questions + " questions - " + e.num_students + " students"),
+    e.status === "generating" && h("div", {className: "card"}, "Generating sheets: " + e.progress + " / " + e.num_students),
+    e.status === "failed" && h("div", {className: "err"}, e.error),
+    e.status === "ready" && h("div", {className: "row", style: {marginBottom: 16}},
+      h("a", {href: "/api/exams/" + id + "/print.pdf", target: "_blank"}, h("button", {className: "b"}, "Download all papers (one PDF)")),
+      h("a", {href: "/api/exams/" + id + "/download.zip"}, h("button", {className: "b sec"}, "Download folder (.zip)")),
+      h("a", {href: "/api/exams/" + id + "/manifest.csv", target: "_blank"}, h("button", {className: "b sec"}, "Manifest CSV (IDs, QR text, keys)"))),
+    e.status === "ready" && h("div", {className: "hint", style: {marginBottom: 12}}, "One PDF with every student's paper, in order. Print it single-sided: each student's answer strip is on the first page of their paper; a longer paper's extra page only continues the questions."),
+    e.status === "ready" && h(ReleaseToggle, {exam: e, onChange: x => setE(old => Object.assign({}, old, x))}),
+    e.status === "ready" && h(GradePages, {examId: id, onDone: () => setRefresh(n => n + 1)}),
+    e.status === "ready" && h(ExamResults, {examId: id, refresh, onOpen: setSelected}),
+    e.sheets && h("div", {className: "card"}, h("h2", null, "Sheets"),
+      h("div", {style: {maxHeight: 420, overflow: "auto"}}, h("table", null,
+        h("thead", null, h("tr", null, ["#", "Paper ID", "QR text", ""].map(x => h("th", {key: x}, x)))),
+        h("tbody", null, e.sheets.map(s => h("tr", {key: s.paper_id}, h("td", null, s.student_no), h("td", null, h("b", null, s.paper_id)),
+          h("td", null, h("code", null, s.qr)),
+          h("td", null, e.status === "ready" && h("a", {href: "/api/exams/" + id + "/sheets/" + s.paper_id + ".pdf", target: "_blank"}, "PDF")))))))));
+}
+
+/* ───────────── student portal ───────────── */
+const mathify = s => String(s).split(/(\$[^$]*\$)/).map(p => p.startsWith("$") && p.endsWith("$") && p.length > 1 ? p : p.replace(/(\w)\^(-?\w+)/g, "$$$1^{$2}$$")).join("");
+function Math_({children, tag = "span", ...rest}) {
+  const ref = useRef(null);
+  useEffect(() => {
+    if (ref.current && window.renderMathInElement)
+      try { window.renderMathInElement(ref.current, {delimiters: [{left: "$", right: "$", display: false}], throwOnError: false}); } catch (e) {}
+  }, [children]);
+  return h(tag, Object.assign({ref}, rest), mathify(children));
+}
+const fmtDate = s => { try { return new Date(s).toLocaleDateString(undefined, {year: "numeric", month: "short", day: "numeric"}); } catch (e) { return s; } };
+const pct = (a, b) => b ? Math.round(100 * a / b) : 0;
+
+function RegNoForm({onUser}) {
+  const [v, setV] = useState(""), [err, setErr] = useState("");
+  async function save() { setErr(""); try { onUser(await (await postJson("/api/me/reg_no", {reg_no: v})).json()); } catch (x) { setErr(x.message); } }
+  return h("div", {className: "card"}, h("h2", null, "Add your registration number"),
+    h("p", {className: "hint", style: {marginTop: 0}}, "Use the same digits you fill in the Registration Number section of your answer sheet. Your results are matched by this number."),
+    h("div", {className: "row"}, h("input", {type: "text", value: v, maxLength: 5, onChange: e => setV(e.target.value), style: {maxWidth: 200}}), h("button", {className: "b", onClick: save}, "Save")),
+    err && h("div", {className: "err"}, err));
+}
+
+function ResultList({open, user, goScan}) {
+  const [rows, setRows] = useState(null);
+  useEffect(() => { api("/api/me/results").then(r => r.json()).then(setRows).catch(() => setRows([])); }, [user.reg_no]);
+  const pcts = (rows || []).map(r => pct(r.score, r.total));
+  const first = user.name.split(" ")[0];
+  return h("div", null,
+    h("div", {className: "pagehead"}, h("div", null, h("h1", null, "Hello, " + first), h("p", {className: "sub"}, "Student ID " + user.reg_no)),
+      h("button", {className: "b", onClick: goScan}, "Scan your sheet")),
+    rows && rows.length > 0 && h("div", {className: "figures", style: {gridTemplateColumns: "repeat(3,1fr)"}},
+      [[rows.length, "Exams with marks"], [Math.round(pcts.reduce((a, b) => a + b, 0) / pcts.length) + "%", "Average"], [Math.max(...pcts) + "%", "Best result"]]
+        .map(([n, l]) => h("div", {className: "figure", key: l}, h("div", {className: "n"}, n), h("div", {className: "l"}, l)))),
+    h("div", {className: "card"}, h("h2", null, "Your results"),
+      rows === null ? h("div", {className: "hint"}, "Loading...") : rows.length === 0 ?
+        h("div", null, h("div", null, "No marks to show yet."), h("div", {className: "hint"}, "They appear here after your teacher has checked your answer sheet and released the marks.")) :
+        rows.map(r => h("div", {className: "lrow", key: r.id, onClick: () => open(r.id)},
+          h("div", {style: {minWidth: 0}}, h("div", {className: "lt"}, r.subject + " - " + r.exam),
+            h("div", {className: "hint", style: {marginTop: 2}}, r.institution + " - " + fmtDate(r.exam_date)),
+            r.source === "student" && h("div", {className: "hint", style: {marginTop: 0}}, "Self-check from your own upload"),
+            r.needs_review && h("div", {className: "hint", style: {marginTop: 0, color: "var(--warn)"}}, "Some answers are under review by your teacher")),
+          h("div", {style: {textAlign: "right", flex: "none"}}, h("div", {className: "big", style: {fontSize: 26}}, r.score + " / " + r.total), h("div", {className: "hint", style: {marginTop: 0}}, pct(r.score, r.total) + "%"))))));
+}
+
+function ResultDetail({base, back, backLabel, teacher, notice, clearNotice}) {
+  const [r, setR] = useState(null), [err, setErr] = useState("");
+  useEffect(() => { api(base).then(x => x.json()).then(setR).catch(e => setErr(e.message)); }, [base]);
+  if (err) return h("div", {className: "err"}, err);
+  if (!r) return "Loading...";
+  const who = teacher ? "Student's" : "Your";
+  const tag = {correct: ["Correct", "var(--ok)"], wrong: ["Wrong", "var(--bad)"], blank: ["Not answered", "#1d4ed8"], invalid: ["Unclear / multiple marks", "#b45309"]};
+  return h("div", null,
+    h("button", {className: "b sec", onClick: back, style: {marginBottom: 12}}, backLabel || "< My results"),
+    notice && h("div", {className: "notice"}, h("span", null, notice), h("button", {onClick: clearNotice, "aria-label": "Dismiss"}, "×")),
+    h("div", {className: "card"},
+      h("div", {className: "row", style: {justifyContent: "space-between", alignItems: "flex-start"}},
+        h("div", null, h("h1", null, teacher ? (r.student || "Registration " + r.registration) : r.subject), h("div", {style: {fontSize: 16, fontWeight: 600}}, teacher ? r.subject + " - " + r.exam : r.exam),
+          h("div", {className: "hint"}, r.institution),
+          h("table", {style: {marginTop: 10, width: "auto"}}, h("tbody", null,
+            [["Exam date", fmtDate(r.exam_date)], ["Paper ID", r.paper_id], ["Registration no.", r.registration], ["Sheet scanned", fmtDate(r.scanned_at)]]
+              .map(([k, v]) => h("tr", {key: k}, h("td", {style: {color: "var(--mut)", paddingRight: 18}}, k), h("td", null, h("b", null, v))))))),
+        h("div", {style: {textAlign: "right"}}, h("div", {className: "big"}, r.score + " / " + r.total), h("div", {className: "hint"}, pct(r.score, r.total) + "%"))),
+      h("div", {className: "stat"}, h("span", {className: "chip c"}, r.counts.correct + " correct"), h("span", {className: "chip w"}, r.counts.wrong + " wrong"),
+        h("span", {className: "chip b"}, r.counts.blank + " not answered"), r.counts.invalid > 0 && h("span", {className: "chip"}, r.counts.invalid + " unclear")),
+      r.source === "student" && h("div", {className: "hint", style: {marginTop: 8}}, teacher ? "This result came from the student's own upload (self-check). Scan the sheet yourself to make it official." : "Self-check: calculated from your own upload. Your teacher's official result replaces it once they scan your sheet."),
+      r.needs_review && h("div", {className: "hint", style: {color: "#b45309", marginTop: 8}}, (teacher ? "Needs your review: " : "Some answers are under review by your teacher: ") + r.flags.join("; "))),
+    h("div", {className: "two"},
+      h("div", null, h("h2", null, teacher ? "Answers" : "Your answers"),
+        r.questions.map(q => h("div", {className: "qa", key: q.number},
+          h("div", {className: "qt"}, h("span", null, "Q" + q.number + ". "), h(Math_, null, q.text),
+            h("span", {className: "tag", style: {color: tag[q.status][1]}}, tag[q.status][0])),
+          q.status === "invalid" && h("div", {className: "hint", style: {margin: "0 0 6px", color: "var(--warn)"}}, teacher ? "Several or faint marks were found - check the answer sheet image." : "Several or faint marks were found - your teacher will check this answer."),
+          q.options.map((o, k) => { const L = "ABCD"[k], mine = q.your === L, right = q.correct === L;
+            return h("div", {key: L, className: "o " + (right ? "ok" : mine ? "no" : "")},
+              h("b", null, L + ". "), h(Math_, null, o),
+              right && h("span", {className: "tag", style: {color: "var(--ok)"}}, mine ? "✓ " + who + " answer (correct)" : "✓ Correct answer"),
+              mine && !right && h("span", {className: "tag", style: {color: "var(--bad)"}}, "✗ " + who + " answer")); })))),
+      h("div", null, h("h2", null, teacher ? "Answer sheet" : "Your answer sheet"),
+        h("div", {className: "legend hint", style: {marginBottom: 8}},
+          h("span", null, h("i", {className: "dot", style: {background: "#009600"}}), "correct"), h("span", null, h("i", {className: "dot", style: {background: "#d20000"}}), "wrong"),
+          h("span", null, h("i", {className: "dot", style: {background: "#006ec8"}}), "right answer you missed"), h("span", null, h("i", {className: "dot", style: {background: "#ff8c00"}}), "unclear")),
+        h("a", {href: base + "/sheet.jpg", target: "_blank"}, h("img", {className: "sheetimg", src: base + "/sheet.jpg", alt: "Scanned answer sheet"})),
+        h("div", {className: "hint"}, "Tap the sheet to open it full size."),
+        h("div", {className: "row", style: {marginTop: 10}}, h("a", {href: base + "/sheet.pdf"}, h("button", {className: "b"}, "Download marked sheet (PDF)")),
+          h("a", {href: base + "/clean.pdf"}, h("button", {className: "b sec"}, "Clean scan (PDF)"))))));
+}
+
+function StudentScan({onDone}) {
+  const [busy, setBusy] = useState(false), [err, setErr] = useState(""), [msg, setMsg] = useState(""), [camOpen, setCamOpen] = useState(false);
+  const input = useRef(null);
+  async function upload(file) {
+    if (!file) return;
+    setBusy(true); setErr(""); setMsg("");
+    try {
+      const fd = new FormData(); fd.append("file", file, file.name);
+      const r = await (await api("/api/me/scan", {method: "POST", body: fd})).json();
+      setMsg(r.message); onDone(r.result_id, r.already ? r.message : "");
+    } catch (x) { setErr(x.message); }
+    setBusy(false);
+  }
+  return h("div", null, h("h1", null, "Scan your answer sheet"),
+    h("p", {className: "sub"}, "Use the camera or upload a scan/photo of your filled answer sheet to check your marks."),
+    camOpen && h(CameraModal, {multi: false, onShot: upload, onClose: () => setCamOpen(false)}),
+    h("div", {className: "card"},
+      h("input", {ref: input, type: "file", accept: "image/*,application/pdf", hidden: true, onChange: e => { upload(e.target.files[0]); e.target.value = ""; }}),
+      h("div", {className: "row"},
+        h("button", {className: "b", disabled: busy, onClick: () => setCamOpen(true)}, busy ? "Checking your sheet..." : "Open camera"),
+        h("button", {className: "b sec", disabled: busy, onClick: () => input.current.click()}, "Upload file")),
+      err && h("div", {className: "err"}, err), msg && h("div", {className: "okm"}, msg),
+      h("ul", {className: "hint", style: {lineHeight: 1.7}},
+        h("li", null, "Put the whole sheet in view, including the thick black border."),
+        h("li", null, "Lay it flat on a darker surface, in good light, and photograph straight from above."),
+        h("li", null, "Your registration number on the sheet must match your student ID."),
+        h("li", null, "Marks from your own upload are a self-check. If your teacher has already scanned the sheet you will see the official result."))));
+}
+
+function MarkCard({c, sample}) {
+  const colour = {correct: "#2e6b4d", wrong: "#a1372f", blank: "#8d9099", invalid: "#85601a"};
+  const head = h("div", {className: "hd"}, h("small", null, c.institution), h("div", {className: "t"}, c.subject), h("small", null, c.exam + " - " + fmtDate(c.exam_date)));
+  if (c.status !== "ready") return h("div", {className: "mcard"}, head, h("div", {className: "bd"},
+    h("div", {style: {fontFamily: "var(--serif)", fontSize: 20, fontWeight: 600}}, c.status === "not_released" ? "Marks not released yet" : "Not checked yet"),
+    h("div", {className: "hint"}, c.status === "not_released" ? "Your teacher will release the marks soon. Scan this QR code again later." : "Please check again after your teacher has scanned the answer sheets."),
+    h("div", {className: "hint", style: {marginTop: 14}}, "Paper ID " + c.paper_id)));
+  const p = pct(c.score, c.total);
+  return h("div", {className: "mcard"}, head, h("div", {className: "bd"},
+    h("div", {style: {display: "flex", alignItems: "baseline", gap: 12}}, h("span", {className: "big", style: {fontSize: 46}}, c.score), h("span", {style: {fontFamily: "var(--serif)", fontSize: 22, color: "var(--mut)"}}, "out of " + c.total),
+      h("span", {style: {marginLeft: "auto", fontWeight: 600, color: p >= 40 ? "var(--ok)" : "var(--bad)"}}, p + "%")),
+    h("div", {className: "stat"}, h("span", {className: "chip c"}, c.counts.correct + " correct"), h("span", {className: "chip w"}, c.counts.wrong + " wrong"),
+      h("span", {className: "chip b"}, c.counts.blank + " not answered"), c.counts.invalid > 0 && h("span", {className: "chip"}, c.counts.invalid + " unclear")),
+    h("table", {className: "kv"}, h("tbody", null, [["Student", c.student || "-"], ["Registration no.", c.registration], ["Paper ID", c.paper_id], ["Checked on", fmtDate(c.checked_at)]]
+      .map(([k, v]) => h("tr", {key: k}, h("td", {style: {color: "var(--mut)", fontWeight: 400}}, k), h("td", null, v))))),
+    h("div", {className: "qstrip"}, c.questions.map(q => h("div", {key: q.number, title: q.status, style: {background: colour[q.status]}}, q.number))),
+    c.needs_review && h("div", {className: "hint", style: {color: "var(--warn)"}}, "Some answers are still under review by your teacher."),
+    !sample && h("div", {className: "hint", style: {marginTop: 14}}, "Log in to the student portal to see every question and your answer sheet.")));
+}
+
+function QrGate({token}) {
+  const [user, setUser] = useState(undefined), [mode, setMode] = useState("login"), [entry, setEntry] = useState(null);
+  useEffect(() => { api("/api/me").then(r => r.json()).then(setUser).catch(() => setUser(null)); }, []);
+  useEffect(() => {
+    if (!user) return;
+    api("/api/qr/" + token).then(r => r.json()).then(q => {
+      if (q.role === "teacher") setEntry(q.status === "ok" ? {view: {name: "detail", id: q.exam_id, result: q.result_id}}
+        : {view: {name: "detail", id: q.exam_id}, notice: "This sheet has not been checked yet - there is no preview. Scan it from here, then open it again."});
+      else if (q.status === "ok") setEntry({open: q.result_id});
+      else setEntry({notice: q.status === "not_released" ? "No preview yet: your teacher has not released the marks for this exam." : "No preview: this sheet has not been checked yet."});
+    }).catch(e => setEntry({notice: e.message, warn: true}));
+    history.replaceState(null, "", "/");
+  }, [user && user.id]);
+  const logout = async () => { await api("/api/logout", {method: "POST"}); setUser(null); setEntry(null); };
+  if (user === undefined) return null;
+  if (!user) return h(AuthPage, {mode, onUser: setUser, notice: "Log in to see the result for this sheet.",
+    go: t => t === "" ? (location.href = "/") : setMode(t === "#signup" ? "register" : "login")});
+  if (!entry) return null;
+  return user.role === "teacher" ? h(Teacher, {user, onLogout: logout, entry}) : h(Student, {user, setUser, onLogout: logout, entry});
+}
+
+/* ───────────── app shell ───────────── */
+function Shell({user, items, tab, setTab, onLogout, children}) {
+  return h("div", {className: "app"},
+    h("header", {className: "top"}, h(Brand), h("button", {className: "b sec", onClick: onLogout}, "Log out")),
+    h("aside", {className: "side"}, h(Brand), h("div", {className: "brandsub"}, user.role === "teacher" ? "Teacher workspace" : "Student portal"),
+      h("nav", null, items.map(i => h("button", {key: i.id, className: tab === i.id ? "on" : "", onClick: () => setTab(i.id)}, i.label))),
+      h("div", {className: "who"}, h("b", null, user.name), h("span", null, user.role), h("div", null, h("button", {className: "b sec", onClick: onLogout}, "Log out")))),
+    h("main", {className: "main"}, children));
+}
+
+function TeacherHome({user, go, open}) {
+  const [rows, setRows] = useState(null);
+  useEffect(() => { api("/api/exams").then(r => r.json()).then(setRows).catch(() => setRows([])); }, []);
+  const sum = f => (rows || []).reduce((a, e) => a + f(e), 0);
+  const first = user.name.split(" ")[0];
+  return h("div", null,
+    h("div", {className: "pagehead"}, h("div", null, h("h1", null, "Welcome, " + first), h("p", {className: "sub"}, "Your exams, and where each one stands.")),
+      h("button", {className: "b", onClick: () => go("gen")}, "New exam")),
+    h("div", {className: "figures"},
+      [[rows ? rows.length : "-", "Exams"], [rows ? sum(e => e.num_students) : "-", "Sheets printed"], [rows ? sum(e => e.scanned) : "-", "Sheets checked"],
+        [rows ? rows.filter(e => e.scanned > 0 && !e.marks_released).length : "-", "Waiting for release"]].map(([n, l]) => h("div", {className: "figure", key: l}, h("div", {className: "n"}, n), h("div", {className: "l"}, l)))),
+    h("div", {className: "card"}, h("div", {className: "row", style: {justifyContent: "space-between", marginBottom: 4}}, h("h2", {style: {margin: 0}}, "Recent exams"),
+        rows && rows.length > 6 && h("a", {onClick: () => go("exams"), style: {cursor: "pointer", fontSize: 14}}, "View all")),
+      rows === null ? h("div", {className: "hint"}, "Loading...") : rows.length === 0 ?
+        h("div", {style: {padding: "18px 0"}}, h("div", null, "You have not created an exam yet."), h("div", {className: "hint"}, "Choose New exam, paste your questions, and the printable answer sheets are generated for every student.")) :
+        rows.slice(0, 6).map(e => h("div", {className: "lrow", key: e.id, onClick: () => open(e.id)},
+          h("div", {style: {minWidth: 0}}, h("div", {className: "lt"}, e.title), h("div", {className: "hint", style: {marginTop: 2}}, e.course + " - " + e.num_questions + " questions - " + fmtDate(e.exam_date || e.created))),
+          h("div", {style: {textAlign: "right", flex: "none"}}, e.status !== "ready" ? h("span", {className: "pill " + e.status}, e.status) :
+            h("div", null, h("div", {style: {fontWeight: 600}}, e.scanned + " of " + e.num_students + " checked"), h("div", {className: "hint", style: {marginTop: 0, color: e.marks_released ? "var(--ok)" : "var(--mut)"}}, e.marks_released ? "Marks released" : "Marks hidden")))))));
+}
+
+function Teacher({user, onLogout, entry}) {
+  const [view, setView] = useState(entry && entry.view ? entry.view : {name: "home"}), [notice, setNotice] = useState(entry && entry.notice || "");
+  const go = name => setView({name});
+  const open = id => setView({name: "detail", id});
+  const items = [{id: "home", label: "Overview"}, {id: "gen", label: "New exam"}, {id: "exams", label: "Exams"}];
+  return h(Shell, {user, items, tab: view.name === "detail" ? "exams" : view.name, setTab: go, onLogout},
+    notice && h("div", {className: "notice " + (entry && entry.warn ? "warn" : "")}, h("span", null, notice), h("button", {onClick: () => setNotice(""), "aria-label": "Dismiss"}, "×")),
+    view.name === "home" && h(TeacherHome, {user, go, open}),
+    view.name === "gen" && h(QuestionGeneration, {onCreated: open}),
+    view.name === "exams" && h(ExamList, {open}),
+    view.name === "detail" && h(ExamDetail, {id: view.id, initialResult: view.result, back: () => go("exams")}));
+}
+
+function Student({user, setUser, onLogout, entry}) {
+  const [openId, setOpenId] = useState(entry && entry.open || null), [tab, setTab] = useState("results"), [notice, setNotice] = useState(entry && entry.notice || "");
+  const items = [{id: "results", label: "Results"}, {id: "check", label: "Scan sheet"}];
+  return h(Shell, {user, items, tab, setTab: t => { setTab(t); setOpenId(null); setNotice(""); }, onLogout},
+    !user.reg_no ? h(RegNoForm, {onUser: setUser}) :
+    tab === "check" ? h(StudentScan, {onDone: (id, note) => { setNotice(note || ""); setOpenId(id); setTab("results"); }}) :
+    openId ? h(ResultDetail, {base: "/api/me/results/" + openId, notice, clearNotice: () => setNotice(""), back: () => { setOpenId(null); setNotice(""); }}) :
+    h("div", null, notice && h("div", {className: "notice" + (entry && entry.warn ? " warn" : "")}, h("span", null, notice), h("button", {onClick: () => setNotice(""), "aria-label": "Dismiss"}, "×")),
+      h(ResultList, {open: setOpenId, user, goScan: () => setTab("check")})));
+}
+
+function App() {
+  const qr = location.pathname.match(/^\/r\/([A-Za-z0-9]+)$/);
+  if (qr) return h(QrGate, {token: qr[1]});
+  const [user, setUser] = useState(undefined), [hash, setHash] = useState(location.hash);
+  useEffect(() => { api("/api/me").then(r => r.json()).then(setUser).catch(() => setUser(null)); }, []);
+  useEffect(() => { const f = () => setHash(location.hash); window.addEventListener("hashchange", f); return () => window.removeEventListener("hashchange", f); }, []);
+  const go = target => { location.hash = target; window.scrollTo(0, 0); };
+  const logout = async () => { await api("/api/logout", {method: "POST"}); setUser(null); location.hash = ""; };
+  if (user === undefined) return null;
+  if (!user) return hash === "#login" || hash === "#signup" ? h(AuthPage, {mode: hash === "#signup" ? "register" : "login", onUser: setUser, go}) : h(Landing, {go});
+  return user.role === "teacher" ? h(Teacher, {user, onLogout: logout}) : h(Student, {user, setUser, onLogout: logout});
+}
+ReactDOM.createRoot(document.getElementById("root")).render(h(App));
+</script></body></html>
