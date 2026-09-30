@@ -1,0 +1,5 @@
+# Self-signed HTTPS in front of the app (browsers only allow the live camera on https pages)
+:443 {
+	tls internal
+	reverse_proxy web:8000
+}

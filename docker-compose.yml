@@ -1,0 +1,36 @@
+version: "3.8"
+
+services:
+  web:
+    build: .
+    image: omr-platform
+    container_name: omr-platform
+    ports:
+      - "${OMR_PORT:-8000}:8000"
+    environment:
+      # address printed inside the QR codes - must be reachable from students' phones (e.g. http://192.168.1.20:8000)
+      OMR_PUBLIC_URL: ${OMR_PUBLIC_URL:-http://localhost:8000}
+      # if set, people need this code to sign up as a teacher
+      OMR_TEACHER_INVITE: ${OMR_TEACHER_INVITE:-}
+      # PostgreSQL (e.g. Supabase). Empty = SQLite file inside the storage volume
+      DATABASE_URL: ${DATABASE_URL:-}
+    volumes:
+      - omr_storage:/storage        # database + generated exams survive rebuilds
+    restart: unless-stopped
+
+  # Optional HTTPS front (needed for the live camera on phones): docker-compose --profile https up -d
+  # Then open https://<this computer's address>:8443 and accept the certificate warning.
+  caddy:
+    image: caddy:2-alpine
+    profiles: ["https"]
+    depends_on:
+      - web
+    ports:
+      - "8443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+
+volumes:
+  omr_storage:
+  caddy_data:
