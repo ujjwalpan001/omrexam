@@ -1,0 +1,12 @@
+opencv-python-headless
+numpy
+PyMuPDF
+pytest
+Jinja2
+fastapi
+uvicorn
+sqlalchemy
+bcrypt
+python-multipart
+httpx
+psycopg[binary]
