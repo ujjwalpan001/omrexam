@@ -817,13 +817,13 @@ def test_anti_ai_notice_is_optional_and_scanning_still_works():
     d = os.path.join(os.environ["OMR_EXAMS_DIR"], str(e["id"]))
     for s in e["sheets"]:
         text = "".join(p.get_text() for p in fitz.open(os.path.join(d, "sheets", f"{s['paper_id']}.pdf")))
-        assert text.count("not practice") == 5                         # after Q2, Q4, Q6, Q8, Q10
+        assert text.count("Helping is cheating") == 5                         # after Q2, Q4, Q6, Q8, Q10
         assert "deskoros.tech" in text and "Deskoros" in text
     pid = e["sheets"][0]["paper_id"]
     res = c.post(f"/api/exams/{e['id']}/scan", files={"file": ("f.png", open(filled_scan(d, pid, _tmp), "rb"), "image/png")}).json()
     assert res["paper_id"] == pid and res["score"] == 10                        # the answer strip is untouched
     _, ids, d2 = make_exam(c, 10)                                               # off by default
-    assert "not practice" not in fitz.open(os.path.join(d2, "sheets", f"{ids[0]}.pdf"))[0].get_text()
+    assert "Helping is cheating" not in fitz.open(os.path.join(d2, "sheets", f"{ids[0]}.pdf"))[0].get_text()
 
 
 def test_installable_app_files():
