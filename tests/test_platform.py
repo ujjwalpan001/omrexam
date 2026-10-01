@@ -375,7 +375,9 @@ def test_batch_pdf_release_toggle_and_qr_card():
         assert c.get(f"/api/exams/{e['id']}/results/{row['id']}/clean.pdf").content[:4] == b"%PDF"
 
     student = new_student("44441")                                      # registration 44441 belongs to the first sheet
-    assert student.get("/api/me/results").json() == []                  # not released -> hidden
+    hidden = student.get("/api/me/results").json()                       # not released: listed as checked, but no marks
+    assert len(hidden) == 1 and hidden[0]["released"] is False and "score" not in hidden[0] and "flags" not in hidden[0]
+    assert student.get(f"/api/me/results/{hidden[0]['id']}").status_code == 404
     assert student_upload(student, pngs[0], "m.png", "image/png").status_code == 409
     public = TestClient(app)                                            # the QR link alone reveals nothing
     assert public.get(f"/api/qr/{tokens[0]}").status_code == 401
@@ -400,9 +402,10 @@ def test_batch_pdf_release_toggle_and_qr_card():
     opened = student.get(f"/api/qr/{tokens[0]}").json()                  # student: opens the result in the student dashboard
     assert opened["status"] == "ok" and opened["result_id"] == mine["result_id"]
     assert student.get(f"/api/me/results/{opened['result_id']}").json()["score"] == 10
-    assert len(student.get("/api/me/results").json()) == 1
+    listed = student.get("/api/me/results").json()
+    assert len(listed) == 1 and listed[0]["released"] is True and listed[0]["score"] == 10
     assert c.put(f"/api/exams/{e['id']}/release", json={"released": False}).json()["marks_released"] is False
-    assert student.get("/api/me/results").json() == []
+    assert all(not r["released"] and "score" not in r for r in student.get("/api/me/results").json())
     assert TestClient(app).put(f"/api/exams/{e['id']}/release", json={"released": True}).status_code == 401
 
 

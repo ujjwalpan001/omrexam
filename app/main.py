@@ -933,7 +933,17 @@ def my_results(user: User = Depends(auth.student_only), db: Session = Depends(au
     if not user.reg_no:
         return []
     rows = db.query(Result).filter_by(registration=user.reg_no).order_by(Result.created.desc()).all()
-    return [result_summary(r, db.get(Exam, r.exam_id), db.get(Sheet, r.sheet_id)) for r in rows if db.get(Exam, r.exam_id).marks_released]
+    out = []
+    for r in rows:
+        exam, sheet = db.get(Exam, r.exam_id), db.get(Sheet, r.sheet_id)
+        if exam.marks_released:
+            out.append(dict(result_summary(r, exam, sheet), released=True))
+        else:                                   # checked, but the marks are still hidden: say so, without any score
+            h = exam.header
+            out.append({"id": r.id, "released": False, "institution": h["institution_name"], "subject": h["course_name"],
+                        "exam": h["exam_title"], "exam_date": h.get("exam_date") or exam.created.date().isoformat(),
+                        "paper_id": sheet.paper_id})
+    return out
 
 
 @app.get("/api/me/results/{result_id}")

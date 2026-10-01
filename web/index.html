@@ -180,6 +180,12 @@ iframe{width:100%;height:760px;border:1px solid var(--line);border-radius:6px;ma
   .wrap{padding:0 18px}.pnav{padding:16px 0}.steps{grid-template-columns:1fr}.display{font-size:32px}
   .qa{padding:10px}iframe{height:70vh}
 }
+/* camera: a photo was taken */
+@keyframes shotflash{from{opacity:.8}to{opacity:0}}
+@keyframes shotfly{0%{transform:translate(-50%,-50%) scale(1);opacity:1}25%{transform:translate(-50%,-50%) scale(1.04);opacity:1}
+  100%{transform:translate(calc(-50% - 26vw),calc(-50% + 44vh)) scale(.1);opacity:.4}}
+@keyframes shotbump{0%{transform:scale(1)}40%{transform:scale(1.18);background:#16a34a}100%{transform:scale(1)}}
+@keyframes shottoast{0%{opacity:0;transform:translate(-50%,8px)}15%,75%{opacity:1;transform:translate(-50%,0)}100%{opacity:0}}
 </style>
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
@@ -365,7 +371,7 @@ async function previewOf(file, quad) {
 function CameraModal({multi, onShot, onClose}) {
   const video = useRef(null), stream = useRef(null), fallback = useRef(null), overlay = useRef(null);
   const [err, setErr] = useState(""), [ready, setReady] = useState(false), [count, setCount] = useState(0);
-  const [status, setStatus] = useState("Looking for the answer sheet..."), [auto, setAuto] = useState(true);
+  const [status, setStatus] = useState("Looking for the answer sheet..."), [auto, setAuto] = useState(true), [shots, setShots] = useState([]);
   const track = useRef({quad: null, steady: 0, armed: true, missed: 0, busy: false}), autoRef = useRef(true);
   autoRef.current = auto;
   useEffect(() => {
@@ -426,7 +432,12 @@ function CameraModal({multi, onShot, onClose}) {
     c.toBlob(b => {
       t.busy = false; t.armed = false; t.steady = 0;
       onShot(new File([b], "scan_" + Date.now() + ".jpg", {type: "image/jpeg"}), quad);
-      setCount(n => n + 1); if (!multi) onClose(); else setStatus("Photo added - show the next page");
+      if (navigator.vibrate) navigator.vibrate(40);
+      if (!multi) { onClose(); return; }
+      const shot = {id: Date.now(), url: URL.createObjectURL(b)};               // flash + the photo flies into "Done"
+      setShots(list => list.concat(shot));
+      setTimeout(() => { setShots(list => list.filter(x => x.id !== shot.id)); URL.revokeObjectURL(shot.url); }, 1300);
+      setCount(n => n + 1); setStatus("Photo added - show the next page");
     }, "image/jpeg", 0.92);
   }
   const btn = {border: 0, borderRadius: 10, padding: "12px 18px", fontWeight: 700, fontSize: 15, cursor: "pointer"};
@@ -435,13 +446,20 @@ function CameraModal({multi, onShot, onClose}) {
       h("video", {ref: video, playsInline: true, muted: true, style: {width: "100%", height: "100%", objectFit: "contain", background: "#000"}}),
       h("canvas", {ref: overlay, style: {position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none"}}),
       ready && h("div", {style: {position: "absolute", left: 0, right: 0, top: 0, padding: "10px 14px", color: "#fff", fontSize: 14, textAlign: "center", background: "rgba(0,0,0,.45)"}}, status),
+      shots.map(x => h(React.Fragment, {key: x.id},
+        h("div", {style: {position: "absolute", inset: 0, background: "#fff", pointerEvents: "none", animation: "shotflash .35s ease-out forwards"}}),
+        h("img", {src: x.url, alt: "", style: {position: "fixed", left: "50%", top: "45%", width: "58vw", maxWidth: 360, borderRadius: 8,
+          border: "3px solid #fff", boxShadow: "0 8px 30px rgba(0,0,0,.5)", pointerEvents: "none", zIndex: 51, animation: "shotfly .9s .1s cubic-bezier(.5,0,.75,0) both"}}))),
+      shots.length > 0 && h("div", {key: "toast" + count, style: {position: "absolute", left: "50%", bottom: 18, background: "#16a34a", color: "#fff", padding: "8px 14px",
+        borderRadius: 20, fontWeight: 700, fontSize: 14, pointerEvents: "none", animation: "shottoast 1.3s ease forwards"}}, "\u2713 Page " + count + " added"),
       !ready && !err && h("div", {style: {position: "absolute", inset: 0, display: "grid", placeItems: "center", color: "#fff"}}, "Starting camera..."),
       err && h("div", {style: {position: "absolute", inset: 0, display: "grid", placeItems: "center", padding: 24, color: "#fff", textAlign: "center"}},
         h("div", null, h("div", {style: {marginBottom: 14}}, err),
           h("input", {ref: fallback, type: "file", accept: "image/*", capture: "environment", hidden: true, onChange: e => { Array.from(e.target.files).forEach(f => onShot(f)); onClose(); }}),
           h("button", {style: Object.assign({}, btn, {background: "#22405f", color: "#fff"}), onClick: () => fallback.current.click()}, "Open the camera app")))),
     h("div", {style: {padding: 16, display: "flex", gap: 12, justifyContent: "center", alignItems: "center", background: "#111"}},
-      h("button", {style: Object.assign({}, btn, {background: "#374151", color: "#fff"}), onClick: onClose}, multi && count ? "Done (" + count + ")" : "Cancel"),
+      h("button", {key: "done" + count, style: Object.assign({}, btn, {background: multi && count ? "#15803d" : "#374151", color: "#fff"},
+        multi && count ? {animation: "shotbump .5s .85s ease"} : null), onClick: onClose}, multi && count ? "\u2713 Done (" + count + ")" : "Cancel"),
       h("button", {disabled: !ready, "aria-label": "Take photo", onClick: snap, style: {width: 68, height: 68, borderRadius: "50%", border: "5px solid #fff", background: ready ? "#ef4444" : "#6b7280", cursor: "pointer"}}),
       h("label", {style: {color: "#fff", fontSize: 13, display: "flex", alignItems: "center", gap: 6, minWidth: 90}},
         h("input", {type: "checkbox", checked: auto, onChange: e => setAuto(e.target.checked)}), "Auto"),
@@ -907,18 +925,23 @@ function RegNoForm({onUser}) {
 function ResultList({open, user, goScan}) {
   const [rows, setRows] = useState(null);
   useEffect(() => { api("/api/me/results").then(r => r.json()).then(setRows).catch(() => setRows([])); }, [user.reg_no]);
-  const pcts = (rows || []).map(r => pct(r.score, r.total));
+  const shown = (rows || []).filter(r => r.released), pcts = shown.map(r => pct(r.score, r.total));
   const first = user.name.split(" ")[0];
   return h("div", null,
     h("div", {className: "pagehead"}, h("div", null, h("h1", null, "Hello, " + first), h("p", {className: "sub"}, "Student ID " + user.reg_no)),
       h("button", {className: "b", onClick: goScan}, "Scan your sheet")),
-    rows && rows.length > 0 && h("div", {className: "figures", style: {gridTemplateColumns: "repeat(3,1fr)"}},
-      [[rows.length, "Exams with marks"], [Math.round(pcts.reduce((a, b) => a + b, 0) / pcts.length) + "%", "Average"], [Math.max(...pcts) + "%", "Best result"]]
+    shown.length > 0 && h("div", {className: "figures", style: {gridTemplateColumns: "repeat(3,1fr)"}},
+      [[shown.length, "Exams with marks"], [Math.round(pcts.reduce((a, b) => a + b, 0) / pcts.length) + "%", "Average"], [Math.max(...pcts) + "%", "Best result"]]
         .map(([n, l]) => h("div", {className: "figure", key: l}, h("div", {className: "n"}, n), h("div", {className: "l"}, l)))),
     h("div", {className: "card"}, h("h2", null, "Your results"),
       rows === null ? h("div", {className: "hint"}, "Loading...") : rows.length === 0 ?
         h("div", null, h("div", null, "No marks to show yet."), h("div", {className: "hint"}, "They appear here after your teacher has checked your answer sheet and released the marks.")) :
-        rows.map(r => h("div", {className: "lrow", key: r.id, onClick: () => open(r.id)},
+        rows.map(r => !r.released ? h("div", {className: "lrow", key: r.id, style: {cursor: "default"}},
+          h("div", {style: {minWidth: 0}}, h("div", {className: "lt"}, r.subject + " - " + r.exam),
+            h("div", {className: "hint", style: {marginTop: 2}}, r.institution + " - " + fmtDate(r.exam_date))),
+          h("div", {style: {textAlign: "right", flex: "none"}}, h("div", {style: {fontWeight: 600}}, "Checked"),
+            h("div", {className: "hint", style: {marginTop: 0}}, "Marks not released yet"))) :
+        h("div", {className: "lrow", key: r.id, onClick: () => open(r.id)},
           h("div", {style: {minWidth: 0}}, h("div", {className: "lt"}, r.subject + " - " + r.exam),
             h("div", {className: "hint", style: {marginTop: 2}}, r.institution + " - " + fmtDate(r.exam_date)),
             r.source === "student" && h("div", {className: "hint", style: {marginTop: 0}}, "Self-check from your own upload"),
