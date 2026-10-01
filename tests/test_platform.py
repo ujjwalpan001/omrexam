@@ -824,3 +824,21 @@ def test_anti_ai_notice_is_optional_and_scanning_still_works():
     assert res["paper_id"] == pid and res["score"] == 10                        # the answer strip is untouched
     _, ids, d2 = make_exam(c, 10)                                               # off by default
     assert "not practice" not in fitz.open(os.path.join(d2, "sheets", f"{ids[0]}.pdf"))[0].get_text()
+
+
+def test_installable_app_files():
+    c = TestClient(app)
+    m = c.get("/manifest.webmanifest")
+    assert m.status_code == 200 and m.headers["content-type"].startswith("application/manifest+json")
+    man = m.json()
+    assert man["name"] == "Deskoros" and man["display"] == "standalone" and man["start_url"].startswith("/")
+    for icon in man["icons"]:
+        r = c.get(icon["src"])
+        assert r.status_code == 200 and r.content[:4] == b"\x89PNG"
+    assert any(i.get("purpose") == "maskable" for i in man["icons"]) and any(i["sizes"] == "512x512" for i in man["icons"])
+    sw = c.get("/sw.js")
+    assert sw.status_code == 200 and "javascript" in sw.headers["content-type"] and sw.headers["cache-control"] == "no-cache"
+    assert '"/api/"' in sw.text                                        # live data is excluded from the cache
+    assert c.get("/icons/..%2Fsw.js").status_code == 404 and c.get("/icons/nope.png").status_code == 404   # no escaping the folder
+    page = c.get("/").text
+    assert 'rel="manifest"' in page and "apple-touch-icon" in page and "<title>Deskoros</title>" in page

@@ -1210,6 +1210,33 @@ def health():
 
 
 # ── static page ────────────────────────────────────────────────────────
+# ── installable app (PWA): manifest, service worker, icons ───────────────
+@app.get("/manifest.webmanifest")
+def manifest_file():
+    return FileResponse(os.path.join(config.ROOT_DIR, "web", "manifest.webmanifest"), media_type="application/manifest+json")
+
+
+@app.get("/sw.js")
+def service_worker():
+    # served from the site root so it may control every page; never cached, so app updates reach phones at once
+    return FileResponse(os.path.join(config.ROOT_DIR, "web", "sw.js"), media_type="application/javascript",
+                        headers={"Cache-Control": "no-cache", "Service-Worker-Allowed": "/"})
+
+
+@app.get("/icons/{name}")
+def icon_file(name: str):
+    path = os.path.join(config.ROOT_DIR, "web", "icons", os.path.basename(name))
+    if not name.endswith(".png") or not os.path.isfile(path):
+        raise HTTPException(404, "Not found")
+    return FileResponse(path, media_type="image/png", headers={"Cache-Control": "public, max-age=604800"})
+
+
+@app.get("/logo.svg")
+def logo_file():
+    return FileResponse(os.path.join(config.ROOT_DIR, "web", "logo.svg"), media_type="image/svg+xml",
+                        headers={"Cache-Control": "public, max-age=604800"})
+
+
 @app.get("/")
 def index():
     return FileResponse(os.path.join(config.ROOT_DIR, "web", "index.html"))

@@ -1,8 +1,18 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>ScanExam</title>
+<html lang="en"><head><meta charset="utf-8"><title>Deskoros</title>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#faf8f5">
 <meta name="description" content="Create OMR answer sheets, scan them with the camera and check marks.">
+<!-- installable app (Android: manifest + service worker; iOS: apple-* tags) -->
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="64x64" href="/icons/favicon-64.png">
+<link rel="icon" type="image/svg+xml" href="/logo.svg">
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
+<meta name="application-name" content="Deskoros">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Deskoros">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 
 <style>
 :root{
@@ -31,7 +41,8 @@ code{background:#f1ede6;padding:1px 5px;border-radius:4px;font-size:12.5px}
 /* app shell */
 .app{display:flex;min-height:100vh}
 .side{width:236px;flex:none;background:var(--card);border-right:1px solid var(--line);padding:26px 14px 18px;display:flex;flex-direction:column;position:sticky;top:0;height:100vh}
-.brand{font-family:var(--serif);font-size:21px;font-weight:600;padding:0 10px 2px;color:var(--ink)}
+.brand{display:flex;align-items:center;gap:9px;font-family:"Century Gothic","URW Gothic","URW Gothic L","Avant Garde","Avenir Next",Futura,"Trebuchet MS",sans-serif;font-size:21px;font-weight:700;letter-spacing:.03em;padding:0 10px 2px;color:var(--ink)}
+.brandlogo{height:1.45em;width:auto;flex:none}
 .brandsub{font-size:12.5px;color:var(--mut);padding:0 10px 24px}
 .side nav{display:flex;flex-direction:column;gap:2px}
 .side nav button{display:block;width:100%;text-align:left;background:none;border:0;padding:9px 10px;border-radius:6px;font-size:14.5px;cursor:pointer;color:#3a404b}
@@ -118,6 +129,8 @@ iframe{width:100%;height:760px;border:1px solid var(--line);border-radius:6px;ma
 .wrap{max-width:1080px;margin-left:auto;margin-right:auto;padding-left:28px;padding-right:28px;width:100%}
 .pnav{display:flex;justify-content:space-between;align-items:center;padding:22px 0;border-bottom:1px solid var(--line)}
 .pnav .brand{padding:0;font-size:23px}
+.pnav .links .b{white-space:nowrap}
+@media (max-width:560px){.pnav{flex-wrap:wrap;row-gap:12px}.pnav .links{width:100%;justify-content:flex-end;flex-wrap:wrap}}
 .pnav .links{display:flex;gap:10px;align-items:center}
 .hero{display:grid;grid-template-columns:1.15fr .85fr;gap:64px;padding:76px 0 64px;align-items:center}
 .display{font-family:var(--serif);font-size:46px;line-height:1.1;font-weight:600;letter-spacing:-.015em;margin:0 0 20px}
@@ -565,7 +578,46 @@ function CameraModal({multi, onShot, onClose}) {
 }
 
 /* ───────────── auth ───────────── */
-function Brand({onClick}) { return h("div", {className: "brand", onClick, style: onClick ? {cursor: "pointer"} : null}, "ScanExam"); }
+function Brand({onClick}) {
+  return h("div", {className: "brand", onClick, style: onClick ? {cursor: "pointer"} : null},
+    h("img", {src: "/logo.svg", alt: "", className: "brandlogo"}), "Deskoros");
+}
+
+/* ───────────── "Install app" (PWA) ─────────────
+   Android / desktop Chrome: the browser offers an install event - we show our own button for it.
+   iPhone / iPad Safari: no such event exists, so we explain "Share -> Add to Home Screen". Hidden once installed. */
+const Install = (() => {
+  let deferred = null; const subs = new Set();
+  const emit = () => subs.forEach(f => f());
+  window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); deferred = e; emit(); });
+  window.addEventListener("appinstalled", () => { deferred = null; emit(); });
+  const standalone = () => window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+  const ios = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  return {
+    available: () => !standalone() && (!!deferred || ios()),
+    ios: () => ios() && !deferred,
+    prompt: async () => { if (!deferred) return; deferred.prompt(); try { await deferred.userChoice; } catch (e) {} deferred = null; emit(); },
+    subscribe: f => { subs.add(f); return () => subs.delete(f); },
+  };
+})();
+if ("serviceWorker" in navigator) window.addEventListener("load", () => navigator.serviceWorker.register("/sw.js").catch(() => {}));
+
+function InstallButton({className}) {
+  const [, redraw] = useState(0), [help, setHelp] = useState(false);
+  useEffect(() => Install.subscribe(() => redraw(n => n + 1)), []);
+  if (!Install.available()) return null;
+  const click = () => Install.ios() ? setHelp(true) : Install.prompt();
+  return h(React.Fragment, null,
+    h("button", {className: className || "b sec", onClick: click}, "Install app"),
+    help && h("div", {className: "modalbg", onClick: () => setHelp(false)}, h("div", {className: "modal", onClick: e => e.stopPropagation()},
+      h("div", {style: {display: "flex", gap: 12, alignItems: "center"}}, h("img", {src: "/icons/apple-touch-icon.png", alt: "", style: {width: 52, height: 52, borderRadius: 12}}),
+        h("div", null, h("b", {style: {fontSize: 17}}, "Install Deskoros"), h("div", {className: "hint", style: {marginTop: 0}}, "Add it to your Home Screen to open it like an app."))),
+      h("ol", {style: {lineHeight: 1.9, paddingLeft: 22, margin: "14px 0"}},
+        h("li", null, "Open this page in ", h("b", null, "Safari"), "."),
+        h("li", null, "Tap the ", h("b", null, "Share"), " button ", h("span", {style: {fontSize: 18}}, "\u2191"), " (bottom of the screen, or top on iPad)."),
+        h("li", null, "Choose ", h("b", null, "Add to Home Screen"), ", then ", h("b", null, "Add"), ".")),
+      h("button", {className: "b", onClick: () => setHelp(false)}, "Got it"))));
+}
 
 function Landing({go}) {
   const sample = {institution: "Sample University", subject: "Mathematics", exam: "Mid-term test", exam_date: "2026-02-12", status: "ready",
@@ -577,10 +629,10 @@ function Landing({go}) {
     ["Release the marks", "Check the results, export them to a spreadsheet, and publish the marks when you are ready."]];
   return h("div", {className: "pub"},
     h("div", {className: "wrap"}, h("div", {className: "pnav"}, h(Brand),
-      h("div", {className: "links"}, h("button", {className: "b sec", onClick: () => go("#login")}, "Log in"), h("button", {className: "b", onClick: () => go("#signup")}, "Create account")))),
+      h("div", {className: "links"}, h(InstallButton), h("button", {className: "b sec", onClick: () => go("#login")}, "Log in"), h("button", {className: "b", onClick: () => go("#signup")}, "Create account")))),
     h("div", {className: "wrap"}, h("div", {className: "hero"},
       h("div", null, h("h1", {className: "display"}, "Paper exams, marked the same day."),
-        h("p", {className: "lead"}, "ScanExam turns a set of multiple-choice questions into printed answer sheets, reads the filled bubbles from a scanner or a phone camera, and gives every student a clear breakdown of their marks."),
+        h("p", {className: "lead"}, "Deskoros turns a set of multiple-choice questions into printed answer sheets, reads the filled bubbles from a scanner or a phone camera, and gives every student a clear breakdown of their marks."),
         h("div", {className: "row"}, h("button", {className: "b", onClick: () => go("#signup")}, "Create a teacher account"), h("button", {className: "b sec", onClick: () => go("#login")}, "Student log in"))),
       h("div", null, h("div", {className: "specimen-l"}, "What a student sees after scanning the QR code on their sheet"), h(MarkCard, {c: sample, sample: true})))),
     h("div", {className: "wrap"}, h("div", {className: "section"}, h("h2", null, "How it works"),
@@ -592,7 +644,7 @@ function Landing({go}) {
       h("div", null, h("h3", null, "For students"), h("ul", null,
         ["See your marks and every question with the correct answer", "View your own answer sheet with each bubble marked", "Check your sheet yourself by scanning it with your phone",
           "Open your result directly from the QR code on the sheet", "Sign in with your student ID"].map(x => h("li", {key: x}, x))))))),
-    h("div", {className: "wrap pfoot"}, "ScanExam - optical mark grading for schools and colleges."));
+    h("div", {className: "wrap pfoot"}, "Deskoros - optical mark grading for schools and colleges."));
 }
 
 function AuthPage({mode, onUser, go, notice}) {
@@ -852,7 +904,7 @@ const Batches = (() => {
   function notifyDone() {
     const s = summary(state.items || []);
     const body = s.saved + " saved" + (s.review ? ", " + s.review + " need review" : "") + (s.failed ? ", " + s.failed + " not recognised" : "") + (s.skipped ? ", " + s.skipped + " already done" : "");
-    try { if (document.hidden && window.Notification && Notification.permission === "granted") new Notification("ScanExam: " + state.total + " page(s) checked", {body}); } catch (e) {}
+    try { if (document.hidden && window.Notification && Notification.permission === "granted") new Notification("Deskoros: " + state.total + " page(s) checked", {body, icon: "/icons/icon-192.png"}); } catch (e) {}
   }
   async function poll() {
     if (!state || !state.job) return;
@@ -1370,10 +1422,10 @@ function QrGate({token}) {
 /* ───────────── app shell ───────────── */
 function Shell({user, items, tab, setTab, onLogout, children}) {
   return h("div", {className: "app"}, h(TopLoader),
-    h("header", {className: "top"}, h(Brand), h("button", {className: "b sec", onClick: onLogout}, "Log out")),
+    h("header", {className: "top"}, h(Brand), h("div", {className: "row", style: {gap: 8}}, h(InstallButton), h("button", {className: "b sec", onClick: onLogout}, "Log out"))),
     h("aside", {className: "side"}, h(Brand), h("div", {className: "brandsub"}, user.role === "teacher" ? "Teacher workspace" : "Student portal"),
       h("nav", null, items.map(i => h("button", {key: i.id, className: tab === i.id ? "on" : "", onClick: () => setTab(i.id)}, i.label))),
-      h("div", {className: "who"}, h("b", null, user.name), h("span", null, user.role), h("div", null, h("button", {className: "b sec", onClick: onLogout}, "Log out")))),
+      h("div", {className: "who"}, h("b", null, user.name), h("span", null, user.role), h("div", {className: "row", style: {gap: 8}}, h(InstallButton), h("button", {className: "b sec", onClick: onLogout}, "Log out")))),
     h("main", {className: "main"}, children));
 }
 

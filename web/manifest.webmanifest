@@ -1,0 +1,19 @@
+{
+  "name": "Deskoros",
+  "short_name": "Deskoros",
+  "description": "Create OMR answer sheets, scan them with the camera and check marks.",
+  "id": "/",
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#faf8f5",
+  "theme_color": "#faf8f5",
+  "categories": ["education", "productivity"],
+  "icons": [
+    {"src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+    {"src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+    {"src": "/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"},
+    {"src": "/icons/apple-touch-icon.png", "sizes": "180x180", "type": "image/png"}
+  ]
+}
