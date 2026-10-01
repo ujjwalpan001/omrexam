@@ -178,11 +178,12 @@ def own_exam(db: Session, exam_id: int, user: User) -> Exam:
     return exam
 
 
-def exam_json(e: Exam, detail: bool = False, scanned: int = 0) -> dict:
+def exam_json(e: Exam, detail: bool = False, scanned: int = 0, pool: Optional[int] = None) -> dict:
+    pool = len(e.questions) if pool is None else pool          # the list passes counts in, so questions are not loaded per exam
     out = {"id": e.id, "title": e.header["exam_title"], "course": e.header["course_name"],
            "test_number": e.header["test_number"], "num_students": e.num_students, "status": e.status,
            "progress": e.progress, "error": e.error, "created": e.created.isoformat(), "exam_date": e.header.get("exam_date"),
-           "num_questions": e.header.get("sheet_questions", len(e.questions)), "pool_size": len(e.questions),
+           "num_questions": e.header.get("sheet_questions", pool), "pool_size": pool,
            "marks_released": e.marks_released, "scanned": scanned}
     if detail:
         out["sheets"] = [{"student_no": s.student_no, "paper_id": s.paper_id, "qr": sheets.qr_link(s.qr_token)} for s in e.sheets]
@@ -230,8 +231,10 @@ def create_exam(body: ExamIn, user: User = Depends(auth.teacher_only), db: Sessi
 @app.get("/api/exams")
 def list_exams(user: User = Depends(auth.teacher_only), db: Session = Depends(auth.get_db)):
     rows = db.query(Exam).filter_by(teacher_id=user.id).order_by(Exam.id.desc()).all()
-    counts = dict(db.query(Result.exam_id, func.count(Result.id)).filter(Result.exam_id.in_([e.id for e in rows])).group_by(Result.exam_id).all()) if rows else {}
-    return [exam_json(e, scanned=counts.get(e.id, 0)) for e in rows]
+    ids = [e.id for e in rows]
+    counts = dict(db.query(Result.exam_id, func.count(Result.id)).filter(Result.exam_id.in_(ids)).group_by(Result.exam_id).all()) if rows else {}
+    pools = dict(db.query(ExamQuestion.exam_id, func.count(ExamQuestion.id)).filter(ExamQuestion.exam_id.in_(ids)).group_by(ExamQuestion.exam_id).all()) if rows else {}
+    return [exam_json(e, scanned=counts.get(e.id, 0), pool=pools.get(e.id, 0)) for e in rows]
 
 
 @app.get("/api/exams/{exam_id}")
@@ -371,10 +374,17 @@ def question_headers(n: int) -> list:
     return [h for i in range(1, n + 1) for h in (f"Q{i}_correct", f"Q{i}_marked")]
 
 
+def students_by_reg(db: Session, regs) -> dict:
+    """registration number -> student, in one query (instead of one per result)."""
+    regs = sorted({r for r in regs if r and r != "INVALID"})
+    return {u.reg_no: u for u in db.query(User).filter(User.role == "student", User.reg_no.in_(regs))} if regs else {}
+
+
 def exam_results_csv(db: Session, exam: Exam) -> str:
     """One row per printed sheet - checked or not - with the student's details, marks and every answer marked right/wrong."""
     n = exam.header.get("sheet_questions", len(exam.questions))
     results_by_sheet = {r.sheet_id: r for r in db.query(Result).filter_by(exam_id=exam.id)}
+    students = students_by_reg(db, [r.registration for r in results_by_sheet.values()])
     buf = io.StringIO()
     w = csv.writer(buf)
     w.writerow(["student_no", "paper_id", "registration_no", "student_name", "student_login_id", "status", "score", "total",
@@ -383,7 +393,7 @@ def exam_results_csv(db: Session, exam: Exam) -> str:
     h = exam.header
     for s in exam.sheets:
         r = results_by_sheet.get(s.id)
-        student = db.query(User).filter_by(reg_no=r.registration, role="student").first() if r else None
+        student = students.get(r.registration) if r else None
         counts = ["", "", "", ""]
         if r:
             st = [results.status_of(r.answers.get(str(i), "BLANK"), s.key[i - 1]) for i in range(1, n + 1)]
@@ -716,8 +726,10 @@ def exam_results(exam_id: int, user: User = Depends(auth.teacher_only), db: Sess
     exam = own_exam(db, exam_id, user)
     by_sheet = {s.id: s for s in exam.sheets}
     rows = []
-    for r in db.query(Result).filter_by(exam_id=exam.id).order_by(Result.created.desc()).all():
-        student = db.query(User).filter_by(reg_no=r.registration, role="student").first()
+    found = db.query(Result).filter_by(exam_id=exam.id).order_by(Result.created.desc()).all()
+    students = students_by_reg(db, [r.registration for r in found])
+    for r in found:
+        student = students.get(r.registration)
         st = [results.status_of(r.answers.get(str(i + 1), "BLANK"), by_sheet[r.sheet_id].key[i]) for i in range(len(by_sheet[r.sheet_id].key))]
         rows.append({"id": r.id, "paper_id": by_sheet[r.sheet_id].paper_id, "registration": r.registration,
                      "counts": {k: st.count(k) for k in ("correct", "wrong", "blank", "invalid")},
@@ -736,6 +748,7 @@ def save_result(db: Session, exam: Exam, sheet: Sheet, res: dict, warped, fills,
     results.render_student_sheet(warped, layout, fills, res["answers"], sheet.key, image)
     results.save_render_inputs(warped, fills, image)
     results.write_jpeg(clean_page, results.clean_path(image))
+    res["score"], res["total"] = results.rescore(res["answers"], sheet.key), len(sheet.key)   # one key for score and marks
     row = db.query(Result).filter_by(sheet_id=sheet.id).first() or Result(exam_id=exam.id, sheet_id=sheet.id)
     row.registration, row.answers, row.score, row.total = res["registration"], res["answers"], res["score"], res["total"]
     row.needs_review, row.flags, row.image_path, row.source = res["needs_review"], res["flags"], image, source
@@ -1041,7 +1054,29 @@ def grade_student_upload(db: Session, user: User, path: str, name: str, on_step=
             "message": "Marks calculated from your upload (self-check)." if released else NOT_RELEASED}
 
 
+def repair_scores() -> None:
+    """Make every stored score agree with the answer key the right/wrong marks are drawn from (older versions could take
+    the score from a separate copy of the key on disk). Runs once at start-up, in the background."""
+    from .db import SessionLocal
+    db = SessionLocal()
+    try:
+        fixed = 0
+        for r, key in db.query(Result, Sheet.key).join(Sheet, Sheet.id == Result.sheet_id).all():
+            score = results.rescore(r.answers or {}, key or [])
+            if r.score != score or r.total != len(key or []):
+                r.score, r.total = score, len(key or [])
+                fixed += 1
+        db.commit()
+        if fixed:
+            print(f"[scores] corrected {fixed} stored score(s) to match the answer key", flush=True)
+    except Exception as e:
+        print(f"[scores] could not check stored scores: {e}", flush=True)
+    finally:
+        db.close()
+
+
 start_scan_workers()                            # also picks up uploads still queued from before a restart
+threading.Thread(target=repair_scores, daemon=True).start()
 
 
 @app.get("/api/me/results")

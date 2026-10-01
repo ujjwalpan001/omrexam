@@ -789,3 +789,20 @@ def test_scan_queue_survives_errors_and_restarts(monkeypatch):
         db.expire_all()
         assert db.get(ScanJob, again.id).status == "queued" and db.get(ScanJob, gave_up.id).status == "failed"
     db.close()
+
+
+def test_score_always_matches_the_right_and_wrong_marks():
+    """No negative marking (+1 right, 0 otherwise), and the score uses the same key as the green/red marks - even if the
+    copy of the key on disk disagrees."""
+    c = login_teacher()
+    e, ids, d = make_exam(c, 10)
+    scan = filled_scan(d, ids[0], _tmp)
+    keys = json.load(open(os.path.join(d, "keys.json")))
+    keys[ids[0]] = ["D" if k != "D" else "A" for k in keys[ids[0]]]                  # a wrong copy of the key on disk
+    json.dump(keys, open(os.path.join(d, "keys.json"), "w"))
+    res = c.post(f"/api/exams/{e['id']}/scan", files={"file": ("f.png", open(scan, "rb"), "image/png")}).json()
+    assert res["saved"] and res["score"] == 10 and res["counts"]["correct"] == 10
+    row = next(r for r in c.get(f"/api/exams/{e['id']}/results").json()["rows"] if r["paper_id"] == ids[0])
+    assert row["score"] == row["counts"]["correct"] == 10
+    from omr import config as cfg
+    assert cfg.SCORE_CORRECT == 1 and cfg.SCORE_INCORRECT == 0                        # wrong answers cost nothing
