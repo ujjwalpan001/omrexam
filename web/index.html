@@ -363,25 +363,36 @@ const PageFinder = (() => {
 })();
 
 // A photo -> the answer sheet cut out and straightened on the phone (inside the green outline), ready to upload.
-// {file: the original, page: the cropped page as a File (null when no sheet was found), preview: image URL, found}
+// {file: the original, upload: what to send, preview: image URL, found, warn: "" or a hint to retake}
 // The cropped page is A4 at 200 DPI (what the server grades at) with a small margin; its name tells the server that
-// the phone already straightened it, so the server skips its own (slow) page search.
-const PAGE_W = 1654;
+// the phone already straightened it, so the server skips its own (slow) page search. When no sheet is found, a big
+// photo is only shrunk to MAX_UPLOAD_SIDE - the size the server reduces photos to anyway - so the result is the same.
+const PAGE_W = 1654, MAX_UPLOAD_SIDE = 3200, MIN_PHOTO_SIDE = 1000, MIN_SHEET_W = 700;
 const canvasBlob = (c, q) => new Promise(ok => c.toBlob(ok, "image/jpeg", q));
+const SMALL_SHEET = "The sheet is small in this photo - move the phone closer so the sheet fills most of the picture.";
 async function previewOf(file, quad) {
-  if (!file.type.startsWith("image/")) return {file, page: null, preview: "", found: false};
+  if (!file.type.startsWith("image/")) return {file, upload: file, preview: "", found: false, warn: ""};
   const url = URL.createObjectURL(file);
   try {
     const img = await new Promise((ok, bad) => { const i = new Image(); i.onload = () => ok(i); i.onerror = bad; i.src = url; });
     const c = document.createElement("canvas"); c.width = img.naturalWidth; c.height = img.naturalHeight;
     c.getContext("2d", {willReadFrequently: true}).drawImage(img, 0, 0);
     const q = quad || PageFinder.findIn(c, c.width, c.height);
-    if (!q) return {file, page: null, preview: url, found: false};
+    if (!q) {
+      const warn = Math.min(c.width, c.height) < MIN_PHOTO_SIDE ? "This photo is very small (" + c.width + " x " + c.height + "). Use the camera, or a bigger photo." : "";
+      const f = Math.min(1, MAX_UPLOAD_SIDE / Math.max(c.width, c.height));
+      if (f === 1) return {file, upload: file, preview: url, found: false, warn};
+      const small = document.createElement("canvas"); small.width = Math.round(c.width * f); small.height = Math.round(c.height * f);
+      const g = small.getContext("2d"); g.imageSmoothingQuality = "high"; g.drawImage(c, 0, 0, small.width, small.height);
+      const blob = await canvasBlob(small, 0.92);
+      return {file, upload: new File([blob], file.name.replace(/\.\w+$/, "") + ".jpg", {type: "image/jpeg"}), preview: url, found: false, warn};
+    }
+    const sheetW = (Math.hypot(q[1][0] - q[0][0], q[1][1] - q[0][1]) + Math.hypot(q[2][0] - q[3][0], q[2][1] - q[3][1])) / 2;
     const blob = await canvasBlob(PageFinder.straighten(c, q, PAGE_W, 0.03, true), 0.92);
     URL.revokeObjectURL(url);
     const page = new File([blob], "phonepage_" + Date.now() + ".jpg", {type: "image/jpeg"});
-    return {file, page, preview: URL.createObjectURL(blob), found: true};
-  } catch (e) { return {file, page: null, preview: url, found: false}; }
+    return {file, upload: page, preview: URL.createObjectURL(blob), found: true, warn: sheetW < MIN_SHEET_W ? SMALL_SHEET : ""};
+  } catch (e) { return {file, upload: file, preview: url, found: false, warn: ""}; }
 }
 
 function CameraModal({multi, onShot, onClose}) {
@@ -794,7 +805,7 @@ function GradePages({examId, onDone}) {
 
   return h("div", {className: "card"}, h("h2", null, "Grade answer sheets"),
     h("p", {className: "hint", style: {marginTop: 0}}, "Upload one PDF containing all scanned sheets (one student per page), or scan pages with the camera. Add as many pages as you like, then check them all at once."),
-    camOpen && h(CameraModal, {multi: true, onShot: async (f, quad) => { const p = await previewOf(f, quad); setQueue(q => q.concat({file: p.page || f, thumb: p.preview || null})); }, onClose: () => setCamOpen(false)}),
+    camOpen && h(CameraModal, {multi: true, onShot: async (f, quad) => { const p = await previewOf(f, quad); setQueue(q => q.concat({file: p.upload, thumb: p.preview || null, warn: p.warn})); }, onClose: () => setCamOpen(false)}),
     h("input", {ref: pick, type: "file", accept: ".pdf,image/*", multiple: true, hidden: true, onChange: e => { add(e.target.files); e.target.value = ""; }}),
     h("div", {className: "row"},
       h("button", {className: "b sec", onClick: () => pick.current.click(), disabled: running}, "Upload PDF / images"),
@@ -804,6 +815,7 @@ function GradePages({examId, onDone}) {
       queue.map((q, i) => h("div", {key: i, style: {border: "1px solid var(--line)", borderRadius: 8, padding: 6, width: 110, textAlign: "center", fontSize: 12}},
         q.thumb ? h("img", {src: q.thumb, style: {width: "100%", height: 90, objectFit: "cover", borderRadius: 4}}) : h("div", {style: {height: 90, display: "grid", placeItems: "center", background: "#eef1f6", borderRadius: 4}}, "PDF"),
         h("div", {style: {overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap"}}, q.file.name),
+        q.warn && h("div", {title: q.warn, style: {color: "var(--warn)", fontSize: 11, marginTop: 2}}, "Sheet too small - retake?"),
         h("button", {className: "b del", style: {marginTop: 4}, onClick: () => remove(i)}, "Remove")))),
     queue.length > 0 && h("div", {className: "hint", style: {marginTop: 8}}, "Tap 'Scan a page' again to add another page before checking."),
     h("label", {style: {display: "flex", gap: 8, alignItems: "center", fontWeight: 400, marginTop: 12, marginBottom: 0}},
@@ -1068,12 +1080,13 @@ function StudentScan({onDone}) {
         pending.loading ? h("div", {className: "hint"}, "Finding the sheet in your photo...") :
           pending.preview ? h("img", {className: "sheetimg", src: pending.preview, alt: "Your answer sheet", style: {maxWidth: 420, display: "block"}}) :
           h("div", {className: "hint"}, pending.file.name),
+        !pending.loading && pending.warn && h("div", {className: "hint", style: {color: "var(--warn)"}}, pending.warn),
         !pending.loading && h("div", {className: pending.found ? "okm" : "hint", style: pending.found ? null : {color: "var(--warn)"}},
           pending.found ? "Sheet found. Make sure every bubble you filled is clearly visible." :
           pending.file.type.startsWith("image/") ? "The black border of the sheet was not found in this photo - it may not be readable. Retake it with the whole sheet in view." :
           "A PDF is checked on the server."),
         h("div", {className: "row", style: {marginTop: 10}},
-          h("button", {className: "b", disabled: pending.loading, onClick: () => upload(pending.page || pending.file)}, "Check this sheet"),
+          h("button", {className: "b", disabled: pending.loading, onClick: () => upload(pending.upload || pending.file)}, "Check this sheet"),
           h("button", {className: "b sec", onClick: () => { setPending(null); setCamOpen(true); }}, "Retake"),
           h("button", {className: "b sec", onClick: () => { setPending(null); input.current.click(); }}, "Choose another file"))) :
       h("div", {className: "row"},

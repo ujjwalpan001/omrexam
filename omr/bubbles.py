@@ -25,16 +25,17 @@ def measure_bubble_fill(thresh_img: np.ndarray, cx_mm: float, cy_mm: float, radi
     h, w = thresh_img.shape
     if cx < 0 or cx >= w or cy < 0 or cy >= h:
         return 0.0
-        
-    mask = np.zeros((h, w), dtype=np.uint8)
-    cv2.circle(mask, (cx, cy), r, 255, -1)
-    
+
     circle_area = np.pi * (r ** 2)
     if circle_area == 0:
         return 0.0
-        
-    masked = cv2.bitwise_and(thresh_img, mask)
-    nonzero = cv2.countNonZero(masked)
+
+    # count only inside a small box around the bubble (same pixels as a full-page mask, far less work)
+    x0, y0 = max(cx - r - 1, 0), max(cy - r - 1, 0)
+    box = thresh_img[y0:min(cy + r + 2, h), x0:min(cx + r + 2, w)]
+    mask = np.zeros(box.shape, dtype=np.uint8)
+    cv2.circle(mask, (cx - x0, cy - y0), r, 255, -1)
+    nonzero = cv2.countNonZero(cv2.bitwise_and(box, mask))
     return float(nonzero) / circle_area
 
 def process_sheet_bubbles(warped_img: np.ndarray, layout_path: str, baseline_path: str = None) -> Dict:
