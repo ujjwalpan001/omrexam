@@ -343,7 +343,11 @@ def pdf_of_images(paths, out):
 def wait_job(c, exam_id, job):
     for _ in range(240):
         j = c.get(f"/api/exams/{exam_id}/scan_batch/{job}").json()
+        assert j["phase"] in ("queued", "preparing", "checking", "finished") and j["elapsed_seconds"] >= 0
+        if j["phase"] == "checking" and j["current"]:                      # live progress for the teacher's screen
+            assert j["current"]["step"] in ("wait", "find", "read", "grade", "save") and j["current"]["page"]
         if j["status"] == "finished":
+            assert j["phase"] == "finished" and j["current"] == {} and j["eta_seconds"] is None and j["done"] == j["total"]
             return j
         time.sleep(0.5)
     raise AssertionError("batch timed out")

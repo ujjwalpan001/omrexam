@@ -180,6 +180,35 @@ iframe{width:100%;height:760px;border:1px solid var(--line);border-radius:6px;ma
   .wrap{padding:0 18px}.pnav{padding:16px 0}.steps{grid-template-columns:1fr}.display{font-size:32px}
   .qa{padding:10px}iframe{height:70vh}
 }
+/* teacher batch progress */
+.batch{border:1px solid var(--line);border-radius:10px;padding:14px 16px;background:#fff}
+.bstep{display:flex;gap:12px;align-items:flex-start;padding:7px 0;color:var(--mut);position:relative}
+.bstep:not(.last)::after{content:"";position:absolute;left:10px;top:30px;bottom:-6px;width:2px;background:var(--line)}
+.bstep.done::after{background:#86c5a2}
+.bstep>div{flex:1;min-width:0}
+.bdot{flex:none;width:22px;height:22px;border-radius:50%;border:2px solid var(--line);display:grid;place-items:center;font-size:12px;font-weight:700;background:#fff;z-index:1}
+.bstep.done{color:var(--ink,#1f2937)}.bstep.done .bdot{background:var(--ok);border-color:var(--ok);color:#fff}
+.bstep.now{color:var(--ink,#1f2937)}.bstep.now .bdot{border-color:var(--pri);border-top-color:transparent;animation:bspin .8s linear infinite}
+.bstep.now .blabel{font-weight:700}
+.blabel{line-height:22px}
+.bar{height:8px;background:#e5e9f0;border-radius:99px;overflow:hidden;margin-top:6px}
+.bar>div{height:100%;background:var(--pri);border-radius:99px;transition:width .4s ease}
+.bpage{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:8px}
+.bpage .chip{background:#f3f4f6;color:#9aa0a8;font-weight:500}
+.bpage .chip.cdone{background:#e6f4ec;color:var(--ok)}
+.bpage .chip.cnow{background:#e8eefb;color:var(--pri);font-weight:700;animation:bpulse 1.2s ease-in-out infinite}
+.bdone{display:flex;gap:12px;align-items:center;background:#ecf7f0;border:1px solid #b7e0c6;border-radius:10px;padding:12px 14px;margin-bottom:10px;animation:bpop .45s ease-out}
+.bcheck{flex:none;width:34px;height:34px;border-radius:50%;background:var(--ok);color:#fff;display:grid;place-items:center;font-size:18px;font-weight:700}
+@keyframes bspin{to{transform:rotate(360deg)}}
+@keyframes bpulse{50%{opacity:.55}}
+@keyframes bpop{0%{transform:scale(.96);opacity:0}100%{transform:scale(1);opacity:1}}
+.bpill{position:fixed;right:16px;bottom:16px;z-index:40;display:flex;align-items:stretch;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:0 8px 28px rgba(15,23,42,.18);max-width:calc(100vw - 32px);animation:bpop .3s ease-out}
+.bpill.ok{border-color:#b7e0c6;background:#ecf7f0}.bpill.lost{border-color:#f0c2bd}
+.bpill-main{position:relative;display:flex;gap:10px;align-items:center;border:0;background:none;padding:10px 14px;text-align:left;font-size:13px;cursor:pointer;overflow:hidden;border-radius:12px;color:inherit}
+.bpill-main i{position:absolute;left:0;bottom:0;height:3px;background:var(--pri);transition:width .4s}
+.bpill-x{border:0;background:none;font-size:18px;padding:0 12px;cursor:pointer;color:var(--mut)}
+.spin{flex:none;width:16px;height:16px;border-radius:50%;border:2px solid var(--pri);border-top-color:transparent;animation:bspin .8s linear infinite}
+@media (max-width:700px){.bpill{bottom:72px}}
 /* camera: a photo was taken */
 @keyframes shotflash{from{opacity:.8}to{opacity:0}}
 @keyframes shotfly{0%{transform:translate(-50%,-50%) scale(1);opacity:1}25%{transform:translate(-50%,-50%) scale(1.04);opacity:1}
@@ -773,35 +802,146 @@ function ExamList({open}) {
             h("div", {className: "hint", style: {marginTop: 0, color: e.marks_released ? "var(--ok)" : "var(--mut)"}}, e.marks_released ? "Marks released" : "Marks hidden")))))));
 }
 
-function GradePages({examId, onDone}) {
+/* ───────────── teacher batch checking: one tracker for the whole app ─────────────
+   Uploads with real progress, then asks the server every second how far it is. It lives outside the exam page, so
+   the teacher can move around (a small panel follows them), and it survives a page reload (localStorage). */
+const Batches = (() => {
+  let state = null, timer = null, baseTitle = document.title;
+  const subs = new Set(), KEY = "omr_batch";
+  const emit = () => { subs.forEach(f => f(state)); title(); };
+  const set = patch => { state = state ? Object.assign({}, state, patch) : patch; emit(); };
+  function remember() {
+    try {
+      if (state && state.job && state.status === "running") localStorage.setItem(KEY, JSON.stringify({examId: state.examId, title: state.title, job: state.job, size: state.size}));
+      else localStorage.removeItem(KEY);
+    } catch (e) {}
+  }
+  function title() {
+    if (state && state.status === "running" && state.phase !== "uploading") document.title = "(" + state.done + "/" + state.total + ") Checking sheets - " + baseTitle;
+    else if (state && state.status === "uploading") document.title = "Uploading... - " + baseTitle;
+    else document.title = baseTitle;
+  }
+  function notifyDone() {
+    const s = summary(state.items || []);
+    const body = s.saved + " saved" + (s.review ? ", " + s.review + " need review" : "") + (s.failed ? ", " + s.failed + " not recognised" : "") + (s.skipped ? ", " + s.skipped + " already done" : "");
+    try { if (document.hidden && window.Notification && Notification.permission === "granted") new Notification("ScanExam: " + state.total + " page(s) checked", {body}); } catch (e) {}
+  }
+  async function poll() {
+    if (!state || !state.job) return;
+    try {
+      const j = await (await api("/api/exams/" + state.examId + "/scan_batch/" + state.job)).json();
+      const wasRunning = state.status === "running";
+      set(Object.assign({}, j, {status: j.status}));
+      if (j.status === "finished") { clearInterval(timer); timer = null; if (wasRunning) notifyDone(); }
+    } catch (x) {
+      clearInterval(timer); timer = null;
+      set({status: "lost", error: "The progress of this upload was lost (the server restarted). Sheets that were already checked are saved - see the results below."});
+    }
+    remember();
+  }
+  const follow = () => { if (!timer) timer = setInterval(poll, 1000); poll(); };
+  function start(examId, examTitle, files, replace) {
+    if (window.Notification && Notification.permission === "default") { try { Notification.requestPermission(); } catch (e) {} }
+    const size = files.reduce((a, f) => a + f.size, 0);
+    state = null; set({examId, title: examTitle, status: "uploading", phase: "uploading", sent: 0, size, total: 0, done: 0, items: [], current: {}, started: Date.now()});
+    const fd = new FormData();
+    files.forEach(f => fd.append("files", f, f.name));
+    fd.append("replace", replace ? "true" : "false");
+    return new Promise((ok, bad) => {                 // XMLHttpRequest, because fetch cannot report upload progress
+      const x = new XMLHttpRequest();
+      x.open("POST", "/api/exams/" + examId + "/scan_batch"); x.withCredentials = true;
+      x.upload.onprogress = e => e.lengthComputable && set({sent: e.loaded});
+      x.onload = () => {
+        let j = {}; try { j = JSON.parse(x.responseText); } catch (e) {}
+        if (x.status !== 200) { set({status: "error", error: j.detail || ("Upload failed (" + x.status + ")")}); return bad(new Error(j.detail || "Upload failed")); }
+        set({status: "running", phase: "queued", job: j.job, total: j.total, sent: size}); remember(); follow(); ok(j);
+      };
+      x.onerror = () => { set({status: "error", error: "Upload failed - check your internet connection and try again."}); bad(new Error("network")); };
+      x.send(fd);
+    });
+  }
+  function resume() {
+    try { const s = JSON.parse(localStorage.getItem(KEY) || "null"); if (s && !state) { set(Object.assign({status: "running", phase: "queued", total: 0, done: 0, items: [], current: {}}, s)); follow(); } } catch (e) {}
+  }
+  function clear() { if (timer) clearInterval(timer); timer = null; state = null; remember(); emit(); }
+  return {get: () => state, subscribe: f => { subs.add(f); return () => subs.delete(f); }, start, resume, clear};
+})();
+function useBatch() { const [s, setS] = useState(Batches.get()); useEffect(() => Batches.subscribe(setS), []); return s; }
+
+function summary(items) {
+  return {saved: items.filter(i => i.ok).length, review: items.filter(i => i.ok && i.needs_review).length,
+    skipped: items.filter(i => i.skipped).length, failed: items.filter(i => !i.ok && !i.skipped).length};
+}
+const fmtSecs = s => s < 60 ? Math.max(1, Math.round(s)) + " s" : Math.floor(s / 60) + " min" + (s % 60 >= 5 ? " " + Math.round(s % 60) + " s" : "");
+const fmtMB = b => (b / 1048576).toFixed(b > 10485760 ? 0 : 1) + " MB";
+const PAGE_STEPS = [["wait", "Waiting for its turn"], ["find", "Finding the sheet"], ["read", "Reading bubbles"], ["grade", "Grading"], ["save", "Saving"]];
+
+// The step-by-step progress of a batch: uploading -> preparing pages -> checking (page by page) -> done
+function BatchProgress({b, examId}) {
+  const s = summary(b.items || []), uploading = b.status === "uploading", finished = b.status === "finished";
+  const phase = uploading ? 0 : b.phase === "queued" || b.phase === "preparing" ? 1 : finished ? 4 : 2;     // 4 = every step done
+  const stepIdx = PAGE_STEPS.findIndex(x => x[0] === (b.current && b.current.step));
+  const row = (i, label, detail) => h("div", {className: "bstep " + (phase > i ? "done" : phase === i ? "now" : "") + (i === 3 ? " last" : "")},
+    h("span", {className: "bdot"}, phase > i ? "✓" : ""), h("div", null, h("div", {className: "blabel"}, label), detail));
+  return h("div", {className: "batch"},
+    finished && h("div", {className: "bdone"}, h("span", {className: "bcheck"}, "✓"),
+      h("div", null, h("div", {style: {fontWeight: 700, fontSize: 17}}, "All " + b.total + " page" + (b.total === 1 ? "" : "s") + " checked" + (b.elapsed_seconds ? " in " + fmtSecs(b.elapsed_seconds) : "")),
+        h("div", {className: "hint", style: {marginTop: 2}}, s.saved + " saved" + (s.review ? " · " + s.review + " need review" : "") + (s.failed ? " · " + s.failed + " not recognised" : "") + (s.skipped ? " · " + s.skipped + " already done" : "")))),
+    row(0, uploading ? "Uploading " + fmtMB(b.sent || 0) + " of " + fmtMB(b.size || 0) : "Uploaded" + (b.size ? " (" + fmtMB(b.size) + ")" : ""),
+      uploading && h("div", {className: "bar"}, h("div", {style: {width: pct(b.sent || 0, b.size || 1) + "%"}}))),
+    row(1, phase > 1 ? "Pages prepared (" + b.total + ")" : phase === 1 ? (b.phase === "queued" ? "Waiting to start..." : "Preparing pages...") : "Prepare pages"),
+    row(2, phase === 2 ? "Checking sheets - " + b.done + " of " + b.total + (b.eta_seconds ? " · about " + fmtSecs(b.eta_seconds) + " left" : "") : phase > 2 ? "Checked " + b.done + " of " + b.total : "Check sheets",
+      phase === 2 && h("div", null, h("div", {className: "bar"}, h("div", {style: {width: pct(b.done, b.total || 1) + "%"}})),
+        b.current && b.current.page && h("div", {className: "bpage"}, h("span", {className: "hint", style: {margin: 0}}, b.current.page + ":"),
+          PAGE_STEPS.map(([k, label], i) => h("span", {key: k, className: "chip " + (i < stepIdx ? "cdone" : i === stepIdx ? "cnow" : "")}, i < stepIdx ? "✓ " + label : label))))),
+    row(3, "Done"),
+    (s.saved + s.failed + s.skipped) > 0 && h("div", {className: "stat", style: {marginTop: 6}},
+      s.saved > 0 && h("span", {className: "chip c"}, s.saved + " saved"), s.review > 0 && h("span", {className: "chip"}, s.review + " need review"),
+      s.failed > 0 && h("span", {className: "chip w"}, s.failed + " not recognised"), s.skipped > 0 && h("span", {className: "chip b"}, s.skipped + " already done")));
+}
+
+// Small panel that follows the teacher around the app while a batch runs (and says when it is done)
+function BatchPill({onOpen, hidden}) {
+  const b = useBatch();
+  if (!b || hidden || b.status === "error") return null;
+  const finished = b.status === "finished", lost = b.status === "lost";
+  const text = b.status === "uploading" ? "Uploading " + pct(b.sent || 0, b.size || 1) + "%" : finished ? "✓ " + b.total + " page(s) checked" :
+    lost ? "Upload progress lost" : "Checking " + b.done + " / " + (b.total || "?") + (b.eta_seconds ? " · ~" + fmtSecs(b.eta_seconds) : "");
+  return h("div", {className: "bpill " + (finished ? "ok" : lost ? "lost" : "")},
+    h("button", {className: "bpill-main", onClick: () => onOpen(b.examId)},
+      !finished && !lost && h("span", {className: "spin"}),
+      h("span", null, h("b", null, b.title || "Exam"), h("br"), text),
+      !finished && !lost && b.total > 0 && h("i", {style: {width: pct(b.done, b.total) + "%"}})),
+    (finished || lost) && h("button", {className: "bpill-x", "aria-label": "Dismiss", onClick: () => Batches.clear()}, "×"));
+}
+
+function GradePages({examId, examTitle, onDone}) {
   const [queue, setQueue] = useState([]);           // {file, thumb}
-  const [job, setJob] = useState(null), [items, setItems] = useState([]), [err, setErr] = useState("");
+  const [err, setErr] = useState("");
   const pick = useRef(null), [camOpen, setCamOpen] = useState(false), [replace, setReplace] = useState(false);
-  const add = files => setQueue(q => q.concat(Array.from(files || []).map(f => ({file: f, thumb: f.type.startsWith("image/") ? URL.createObjectURL(f) : null}))));
+  const add = files => {                             // copy the list now: the picker is cleared right after, which empties it
+    const picked = Array.from(files || []).map(f => ({file: f, thumb: f.type.startsWith("image/") ? URL.createObjectURL(f) : null}));
+    setQueue(q => q.concat(picked));
+  };
   const remove = i => setQueue(q => q.filter((_, j) => j !== i));
-  const running = job && job.status === "running";
+  const all = useBatch(), b = all && all.examId === examId ? all : null;              // this exam's batch, if any
+  const busy = all && (all.status === "uploading" || all.status === "running");
+  const running = b && (b.status === "uploading" || b.status === "running"), items = (b && b.items) || [];
+  const job = b && b.job ? {id: b.job} : null;
+  const lastDone = useRef(-1);
+  useEffect(() => {                                  // refresh the results table as sheets come in, and once at the end
+    if (!b) return;
+    if (b.status === "finished" || (b.done !== lastDone.current && b.done % 5 === 0)) onDone();
+    lastDone.current = b.done;
+  }, [b && b.done, b && b.status]);
 
   async function start() {
-    setErr(""); setItems([]);
-    try {
-      const fd = new FormData();
-      queue.forEach(q => fd.append("files", q.file, q.file.name));
-      fd.append("replace", replace ? "true" : "false");
-      const r = await (await api("/api/exams/" + examId + "/scan_batch", {method: "POST", body: fd})).json();
-      setJob({id: r.job, status: "running", total: r.total, done: 0}); setQueue([]);
-    } catch (x) { setErr(x.message); }
+    setErr("");
+    const files = queue.map(q => q.file);
+    setQueue([]);
+    try { await Batches.start(examId, examTitle, files, replace); }
+    catch (x) { /* the tracker shows the error */ }
   }
-  useEffect(() => {
-    if (!running) return;
-    const t = setInterval(async () => {
-      try {
-        const j = await (await api("/api/exams/" + examId + "/scan_batch/" + job.id)).json();
-        setItems(j.items); setJob(old => Object.assign({}, old, {status: j.status, done: j.done, total: j.total}));
-        if (j.status === "finished") onDone();
-      } catch (x) { setErr(x.message); }
-    }, 1000);
-    return () => clearInterval(t);
-  }, [running, job && job.id]);
 
   return h("div", {className: "card"}, h("h2", null, "Grade answer sheets"),
     h("p", {className: "hint", style: {marginTop: 0}}, "Upload one PDF containing all scanned sheets (one student per page), or scan pages with the camera. Add as many pages as you like, then check them all at once."),
@@ -810,7 +950,8 @@ function GradePages({examId, onDone}) {
     h("div", {className: "row"},
       h("button", {className: "b sec", onClick: () => pick.current.click(), disabled: running}, "Upload PDF / images"),
       h("button", {className: "b sec", onClick: () => setCamOpen(true), disabled: running}, "Scan a page"),
-      h("button", {className: "b", onClick: start, disabled: !queue.length || running}, queue.length ? "Check " + queue.length + " item" + (queue.length > 1 ? "s" : "") : "Check")),
+      h("button", {className: "b", onClick: start, disabled: !queue.length || busy, title: busy && !running ? "Another upload is still being checked" : ""}, queue.length ? "Check " + queue.length + " item" + (queue.length > 1 ? "s" : "") : "Check")),
+    busy && !running && h("div", {className: "hint"}, "Another exam's upload is still being checked - you can start this one when it has finished."),
     queue.length > 0 && h("div", {style: {display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12}},
       queue.map((q, i) => h("div", {key: i, style: {border: "1px solid var(--line)", borderRadius: 8, padding: 6, width: 110, textAlign: "center", fontSize: 12}},
         q.thumb ? h("img", {src: q.thumb, style: {width: "100%", height: 90, objectFit: "cover", borderRadius: 4}}) : h("div", {style: {height: 90, display: "grid", placeItems: "center", background: "#eef1f6", borderRadius: 4}}, "PDF"),
@@ -821,13 +962,14 @@ function GradePages({examId, onDone}) {
     h("label", {style: {display: "flex", gap: 8, alignItems: "center", fontWeight: 400, marginTop: 12, marginBottom: 0}},
       h("input", {type: "checkbox", checked: replace, onChange: e => setReplace(e.target.checked), disabled: running}), "Check again and replace results that were already checked"),
     err && h("div", {className: "err"}, err),
-    job && h("div", {style: {marginTop: 14}},
-      h("div", {style: {height: 10, background: "#e5e9f0", borderRadius: 99, overflow: "hidden"}}, h("div", {style: {height: "100%", width: pct(job.done, job.total) + "%", background: "var(--pri)", transition: "width .3s"}})),
-      h("div", {className: "hint"}, (running ? "Checking... " : "Done: ") + job.done + " / " + job.total + " page(s)" +
-        (!running ? " - " + items.filter(i => i.ok).length + " saved" + (items.some(i => i.skipped) ? ", " + items.filter(i => i.skipped).length + " already processed" : "") + ", " + items.filter(i => !i.ok && !i.skipped).length + " not saved" : "")),
+    b && (b.status === "error" || b.status === "lost") && h("div", {className: "err"}, b.error),
+    b && b.status !== "error" && h("div", {style: {marginTop: 14}},
+      b.status !== "lost" && h(BatchProgress, {b, examId}),
       !running && items.some(i => i.skipped) && h("div", {className: "notice", style: {marginTop: 10, marginBottom: 0}},
         h("span", null, items.filter(i => i.skipped).length + " of these sheets " + (items.filter(i => i.skipped).length === 1 ? "was" : "were") + " already processed, so " + (items.filter(i => i.skipped).length === 1 ? "it was" : "they were") + " skipped and their earlier results are unchanged. To check them again, tick \"Check again and replace\" and upload the files once more.")),
-      !running && h("div", {style: {marginTop: 8}}, h("a", {href: "/api/exams/" + examId + "/scan_batch/" + job.id + "/results.csv"}, h("button", {className: "b sec"}, "Download this upload (CSV)"))),
+      !running && job && b.status === "finished" && h("div", {className: "row", style: {marginTop: 8}},
+        h("a", {href: "/api/exams/" + examId + "/scan_batch/" + job.id + "/results.csv"}, h("button", {className: "b sec"}, "Download this upload (CSV)")),
+        h("button", {className: "b sec", onClick: () => Batches.clear()}, "Close")),
       items.length > 0 && h("div", {style: {maxHeight: 360, overflow: "auto", marginTop: 8}}, h("table", null,
         h("thead", null, h("tr", null, ["Page", "Paper ID", "Regn no.", "Score", "Right / wrong", "Note"].map(x => h("th", {key: x}, x)))),
         h("tbody", null, items.map((it, i) => h("tr", {key: i},
@@ -919,7 +1061,7 @@ function ExamDetail({id, back, initialResult}) {
       h("a", {href: "/api/exams/" + id + "/manifest.csv", target: "_blank"}, h("button", {className: "b sec"}, "Manifest CSV (IDs, QR text, keys)"))),
     e.status === "ready" && h("div", {className: "hint", style: {marginBottom: 12}}, "One PDF with every student's paper, in order. Print it single-sided: each student's answer strip is on the first page of their paper; a longer paper's extra page only continues the questions."),
     e.status === "ready" && h(ReleaseToggle, {exam: e, onChange: x => setE(old => Object.assign({}, old, x))}),
-    e.status === "ready" && h(GradePages, {examId: id, onDone: () => setRefresh(n => n + 1)}),
+    e.status === "ready" && h(GradePages, {examId: id, examTitle: e.title, onDone: () => setRefresh(n => n + 1)}),
     e.status === "ready" && h(ExamResults, {examId: id, refresh, onOpen: setSelected}),
     e.sheets && h("div", {className: "card"}, h("h2", null, "Sheets"),
       h("div", {style: {maxHeight: 420, overflow: "auto"}}, h("table", null,
@@ -1134,7 +1276,7 @@ function QrGate({token}) {
     }).catch(e => setEntry({notice: e.message, warn: true}));
     history.replaceState(null, "", "/");
   }, [user && user.id]);
-  const logout = async () => { await api("/api/logout", {method: "POST"}); setUser(null); setEntry(null); };
+  const logout = async () => { Batches.clear(); await api("/api/logout", {method: "POST"}); setUser(null); setEntry(null); };
   if (user === undefined) return null;
   if (!user) return h(AuthPage, {mode, onUser: setUser, notice: "Log in to see the result for this sheet.",
     go: t => t === "" ? (location.href = "/") : setMode(t === "#signup" ? "register" : "login")});
@@ -1178,7 +1320,9 @@ function Teacher({user, onLogout, entry}) {
   const go = name => setView({name});
   const open = id => setView({name: "detail", id});
   const items = [{id: "home", label: "Overview"}, {id: "gen", label: "New exam"}, {id: "exams", label: "Exams"}];
+  useEffect(() => { Batches.resume(); }, []);       // an upload still being checked after a page reload
   return h(Shell, {user, items, tab: view.name === "detail" ? "exams" : view.name, setTab: go, onLogout},
+    h(BatchPill, {onOpen: open, hidden: view.name === "detail" && Batches.get() && Batches.get().examId === view.id}),
     notice && h("div", {className: "notice " + (entry && entry.warn ? "warn" : "")}, h("span", null, notice), h("button", {onClick: () => setNotice(""), "aria-label": "Dismiss"}, "×")),
     view.name === "home" && h(TeacherHome, {user, go, open}),
     view.name === "gen" && h(QuestionGeneration, {onCreated: open}),
@@ -1204,7 +1348,7 @@ function App() {
   useEffect(() => { api("/api/me").then(r => r.json()).then(setUser).catch(() => setUser(null)); }, []);
   useEffect(() => { const f = () => setHash(location.hash); window.addEventListener("hashchange", f); return () => window.removeEventListener("hashchange", f); }, []);
   const go = target => { location.hash = target; window.scrollTo(0, 0); };
-  const logout = async () => { await api("/api/logout", {method: "POST"}); setUser(null); location.hash = ""; };
+  const logout = async () => { Batches.clear(); await api("/api/logout", {method: "POST"}); setUser(null); location.hash = ""; };
   if (user === undefined) return null;
   if (!user) return hash === "#login" || hash === "#signup" ? h(AuthPage, {mode: hash === "#signup" ? "register" : "login", onUser: setUser, go}) : h(Landing, {go});
   return user.role === "teacher" ? h(Teacher, {user, onLogout: logout}) : h(Student, {user, setUser, onLogout: logout});

@@ -111,14 +111,19 @@ def locate_page(img, layout_path: str, phone_page: bool = False):
 
 
 def process_scan_full(filepath: str, keys_path: str, layout_path: str, baseline_path: str = None, located=None,
-                      phone_page: bool = False):
+                      phone_page: bool = False, on_step=None):
     """Grade a scan; also return the straightened page image and the raw fill ratios.
-    `located` = (oriented image, frame corners) when the page was already found (saves finding it twice)."""
+    `located` = (oriented image, frame corners) when the page was already found (saves finding it twice).
+    `on_step(name)` is told when each step starts: "find", "read", "grade" (for progress displays)."""
+    step = on_step or (lambda name: None)
     if located is None:
+        step("find")
         located = locate_page(preprocess.load_image(filepath), layout_path, phone_page)
     oriented_img, marker_centers = located
     warped_img = warp.warp_image(oriented_img, marker_centers, layout_path)
+    step("read")
     result_fills = bubbles.process_sheet_bubbles(warped_img, layout_path, baseline_path)
+    step("grade")
     with open(keys_path, 'r') as f:
         keys = json.load(f)
     graded = grader.grade_sheet(result_fills, keys)

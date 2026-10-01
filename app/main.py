@@ -8,6 +8,7 @@ import os
 import random
 import tempfile
 import threading
+import time
 import zipfile
 from typing import List, Optional
 
@@ -277,14 +278,14 @@ def manifest(exam_id: int, user: User = Depends(auth.teacher_only), db: Session 
     return PlainTextResponse(sheets.manifest_csv(own_exam(db, exam_id, user)), media_type="text/csv")
 
 
-def grade_file(db: Session, exam: Exam, path: str, name: str, replace: bool = False) -> dict:
+def grade_file(db: Session, exam: Exam, path: str, name: str, replace: bool = False, on_step=None) -> dict:
     """Grade one image (or first PDF page) of this exam's sheet and store the result. Raises on unreadable input.
 
     A sheet the teacher has already checked is skipped (res["skipped"]) unless `replace` is set; a student's self-check
     is always replaced by the teacher's scan."""
     d = sheets.scan_dir(exam)
     res, warped, fills = process_scan_full(path, os.path.join(d, "keys.json"), os.path.join(d, "layout.json"),
-                                           os.path.join(d, "baseline.json"), phone_page=is_phone_page(name))
+                                           os.path.join(d, "baseline.json"), phone_page=is_phone_page(name), on_step=on_step)
     clean_page = docscan.clean_page(warped)                 # the page the grader already straightened
     res["file"] = name
     sheet = next((s for s in exam.sheets if s.paper_id == res["paper_id"]), None)
@@ -298,6 +299,8 @@ def grade_file(db: Session, exam: Exam, path: str, name: str, replace: bool = Fa
                                           "total": existing.total, "needs_review": existing.needs_review,
                                           "scanned_at": existing.created.isoformat()})
         return res
+    if on_step:
+        on_step("save")
     row = save_result(db, exam, sheet, res, warped, fills, clean_page, source="teacher")
     student = db.query(User).filter_by(reg_no=res["registration"], role="student").first() if res["registration"] != "INVALID" else None
     statuses = [results.status_of(res["answers"].get(str(i + 1), "BLANK"), sheet.key[i]) for i in range(len(sheet.key))]
@@ -436,8 +439,13 @@ def run_batch(job_id: str, exam_id: int, uploads: List[tuple], tmp, replace: boo
     """Background worker. uploads = [(saved path, original name)]."""
     from .db import SessionLocal
     job, db = JOBS[job_id], SessionLocal()
+
+    def step(name):
+        job["current"]["step"] = name
+
     try:
         exam = db.get(Exam, exam_id)
+        job["phase"] = "preparing"
         for path, name in uploads:
             try:
                 with workers.slot():
@@ -446,17 +454,20 @@ def run_batch(job_id: str, exam_id: int, uploads: List[tuple], tmp, replace: boo
                 job["items"].append({"page": name, "ok": False, "error": f"Could not open file: {e}"})
                 job["done"] += 1
                 continue
+            job["phase"] = "checking"
             for i, page_path in enumerate(pages):
                 label = name if len(pages) == 1 else f"{name} - page {i + 1}"
+                job["current"] = {"page": label, "number": job["done"] + 1, "step": "wait"}
+                page_start = time.monotonic()
                 try:
                     with workers.slot():                    # one page at a time, so student uploads can get in between
-                        r = grade_file(db, exam, page_path, label, replace)
+                        r = grade_file(db, exam, page_path, label, replace, on_step=step)
                     if r.get("skipped"):
                         ex = r["existing"]
                         job["items"].append({"page": label, "ok": False, "skipped": True, "error": "Already processed",
                                              "paper_id": r["paper_id"], "registration": ex["registration"], "score": ex["score"],
                                              "total": ex["total"], "needs_review": ex["needs_review"], "flags": []})
-                        job["done"] += 1
+                        page_done(job, page_start)
                         continue
                     ok = r["saved"]
                     job["items"].append({"page": label, "ok": ok, "error": "" if ok else "; ".join(r["flags"][-1:]),
@@ -466,15 +477,29 @@ def run_batch(job_id: str, exam_id: int, uploads: List[tuple], tmp, replace: boo
                                          "counts": r.get("counts", {})})
                 except Exception as e:
                     job["items"].append({"page": label, "ok": False, "error": str(e)})
-                job["done"] += 1
+                page_done(job, page_start)
     finally:
         try:
             save_csv_files(db, db.get(Exam, exam_id), job_id, job["items"])
         except Exception:
             pass                                  # the CSV can still be downloaded on demand
-        job["status"] = "finished"
+        job["status"], job["phase"], job["current"], job["finished_at"] = "finished", "finished", {}, time.time()
         db.close()
         tmp.cleanup()
+
+
+def page_done(job: dict, started: float) -> None:
+    job["done"] += 1
+    job["page_seconds"].append(time.monotonic() - started)
+
+
+def batch_json(job: dict) -> dict:
+    """What the teacher's progress display needs: stage, the page being checked and its step, counts and time left."""
+    out = {k: job[k] for k in ("status", "phase", "total", "done", "items", "current")}
+    recent = job["page_seconds"][-10:]
+    out["eta_seconds"] = round(sum(recent) / len(recent) * (job["total"] - job["done"])) if recent and job["status"] == "running" else None
+    out["elapsed_seconds"] = round((job.get("finished_at") or time.time()) - job["started_at"])
+    return out
 
 
 @app.post("/api/exams/{exam_id}/scan_batch")
@@ -506,7 +531,8 @@ async def scan_batch(exam_id: int, files: List[UploadFile] = File(...), replace:
     job_id = uuid.uuid4().hex[:12]
     for old in list(JOBS)[:-50]:
         JOBS.pop(old, None)
-    JOBS[job_id] = {"exam_id": exam_id, "teacher_id": user.id, "status": "running", "total": total, "done": 0, "items": []}
+    JOBS[job_id] = {"exam_id": exam_id, "teacher_id": user.id, "status": "running", "phase": "queued", "total": total, "done": 0,
+                    "items": [], "current": {}, "page_seconds": [], "started_at": time.time()}
     threading.Thread(target=run_batch, args=(job_id, exam_id, uploads, tmp, replace), daemon=True).start()
     return {"job": job_id, "total": total}
 
@@ -516,7 +542,7 @@ def scan_batch_status(exam_id: int, job_id: str, user: User = Depends(auth.teach
     job = JOBS.get(job_id)
     if not job or job["exam_id"] != exam_id or job["teacher_id"] != user.id:
         raise HTTPException(404, "Job not found")
-    return {k: job[k] for k in ("status", "total", "done", "items")}
+    return batch_json(job)
 
 
 def teacher_result(db: Session, exam_id: int, result_id: int, user: User) -> tuple:
