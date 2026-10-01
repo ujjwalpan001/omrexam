@@ -195,6 +195,11 @@ iframe{width:100%;height:760px;border:1px solid var(--line);border-radius:6px;ma
   .wrap{padding:0 18px}.pnav{padding:16px 0}.steps{grid-template-columns:1fr}.display{font-size:32px}
   .qa{padding:10px}iframe{height:70vh}
 }
+/* password with show / hide */
+.pwbox{position:relative}
+.pwbox input{padding-right:46px}
+.pweye{position:absolute;right:4px;top:50%;transform:translateY(-50%);border:0;background:none;color:var(--mut);padding:8px;cursor:pointer;border-radius:6px;display:grid;place-items:center}
+.pweye:hover,.pweye:focus-visible{color:var(--ink);background:var(--pri-weak)}
 /* loading feedback */
 .toploader{position:fixed;left:0;right:0;top:0;height:3px;z-index:100;overflow:hidden;background:rgba(34,64,95,.12)}
 .toploader::before{content:"";position:absolute;top:0;bottom:0;width:40%;background:var(--pri);border-radius:3px;animation:toploader 1s ease-in-out infinite}
@@ -300,7 +305,20 @@ const postJson = (path, body) => api(path, {method: "POST", headers: {"Content-T
 
 function Field({label, children}) { return h("div", null, h("label", null, label), children); }
 function Text({label, value, onChange, type = "text", ...rest}) {
+  if (type === "password") return h(Field, {label}, h(PasswordInput, Object.assign({value, onChange}, rest)));
   return h(Field, {label}, h("input", Object.assign({type, value: value ?? "", onChange: e => onChange(e.target.value)}, rest)));
+}
+// Password box with an eye button to show / hide what was typed
+const EYE = "M1 12s4-7 11-7 11 7 11 7-4 7-11 7S1 12 1 12z", PUPIL = "M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z";
+function PasswordInput({value, onChange, ...rest}) {
+  const [show, setShow] = useState(false);
+  const icon = h("svg", {width: 20, height: 20, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": true},
+    h("path", {d: EYE}), h("path", {d: PUPIL}), !show && h("path", {d: "M3 3l18 18"}));
+  return h("div", {className: "pwbox"},
+    h("input", Object.assign({type: show ? "text" : "password", value: value ?? "", onChange: e => onChange(e.target.value),
+      autoComplete: rest.autoComplete || "current-password", autoCapitalize: "off", spellCheck: false}, rest)),
+    h("button", {type: "button", className: "pweye", onClick: () => setShow(v => !v), "aria-label": show ? "Hide password" : "Show password",
+      "aria-pressed": show, title: show ? "Hide password" : "Show password"}, icon));
 }
 
 /* ───────────── in-page camera (falls back to the phone's camera app when the browser blocks getUserMedia) ───────────── */
@@ -676,7 +694,7 @@ function AuthPage({mode, onUser, go, notice}) {
       register && teacher && h("div", {className: "field"}, h(Text, {label: "Email", type: "email", value: f.email, onChange: set("email")})),
       register && !teacher && h("div", {className: "field"}, h(Text, {label: "Student ID (5 digits)", value: f.reg_no, onChange: set("reg_no")}),
         h("div", {className: "hint"}, "The last 5 digits of your registration number - the same digits you bubble on your answer sheet.")),
-      h("div", {className: "field"}, h(Text, {label: "Password", type: "password", value: f.password, onChange: set("password")}),
+      h("div", {className: "field"}, h(Text, {label: "Password", type: "password", value: f.password, onChange: set("password"), autoComplete: register ? "new-password" : "current-password"}),
         register && teacher && h("div", {className: "hint"}, "At least 8 characters.")),
       register && teacher && h("div", {className: "field"}, h(Text, {label: "Invite code (if your school gave you one)", value: f.invite, onChange: set("invite")})),
       err && h("div", {className: "err"}, err),
