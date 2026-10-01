@@ -1,4 +1,5 @@
 """CamScanner-style document cleanup: find the page in a photo, straighten it, remove shadows, whiten the paper."""
+import os
 from typing import Optional
 
 import cv2
@@ -8,6 +9,9 @@ from . import config
 
 MAX_SIDE = 3200          # photos are shrunk to this before processing (speed); the output is A4 at 200 DPI
 MIN_PAGE_AREA = 0.20     # the page must cover at least this fraction of the photo
+# Estimate the paper brightness (for shadow removal) on a 1/4-size copy: ~10x faster, very slightly different pixels.
+# Off by default until compare_shadows.py has confirmed identical answers on real photos (env OMR_FAST_SHADOWS=1).
+FAST_SHADOWS = os.environ.get("OMR_FAST_SHADOWS", "").strip().lower() in ("1", "true", "yes", "on")
 
 
 def order_quad(pts: np.ndarray) -> np.ndarray:
@@ -83,9 +87,14 @@ def remove_shadows(gray: np.ndarray) -> np.ndarray:
 
     The estimate uses a window wider than the thick black frame/header bar, so those stay solid black."""
     window = int(max(gray.shape) * 0.045) | 1                       # ~13 mm on the canonical page
+    f = 4 if FAST_SHADOWS else 1                                    # work on a 1/f-size copy: shadows are smooth
+    small = cv2.resize(gray, None, fx=1 / f, fy=1 / f, interpolation=cv2.INTER_AREA) if f > 1 else gray
+    w = max(3, (window // f) | 1)
     # closing (dilate then erode) removes dark print but keeps the outline of a shadow, so no halo at its edge
-    background = cv2.morphologyEx(gray, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (window, window)))
-    background = cv2.GaussianBlur(cv2.medianBlur(background, 31), (0, 0), 8)
+    background = cv2.morphologyEx(small, cv2.MORPH_CLOSE, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (w, w)))
+    background = cv2.GaussianBlur(cv2.medianBlur(background, max(3, (31 // f) | 1)), (0, 0), 8 / f)
+    if f > 1:
+        background = cv2.resize(background, (gray.shape[1], gray.shape[0]), interpolation=cv2.INTER_LINEAR)
     flat = cv2.divide(gray, np.maximum(background, 1), scale=255)
     black, white = np.percentile(flat, 1), np.percentile(flat, 60)                          # paper is the majority of pixels
     return np.clip((flat.astype(np.float32) - black) * 255.0 / max(white - black, 1), 0, 255).astype(np.uint8)

@@ -97,10 +97,12 @@ def locate_page(img, layout_path: str):
             raise direct_error
 
 
-def process_scan_full(filepath: str, keys_path: str, layout_path: str, baseline_path: str = None):
-    """Grade a scan; also return the straightened page image and the raw fill ratios."""
-    img = preprocess.load_image(filepath)
-    oriented_img, marker_centers = locate_page(img, layout_path)
+def process_scan_full(filepath: str, keys_path: str, layout_path: str, baseline_path: str = None, located=None):
+    """Grade a scan; also return the straightened page image and the raw fill ratios.
+    `located` = (oriented image, frame corners) when the page was already found (saves finding it twice)."""
+    if located is None:
+        located = locate_page(preprocess.load_image(filepath), layout_path)
+    oriented_img, marker_centers = located
     warped_img = warp.warp_image(oriented_img, marker_centers, layout_path)
     result_fills = bubbles.process_sheet_bubbles(warped_img, layout_path, baseline_path)
     with open(keys_path, 'r') as f:

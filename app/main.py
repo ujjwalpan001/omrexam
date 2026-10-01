@@ -896,7 +896,7 @@ def grade_student_upload(db: Session, user: User, path: str, name: str) -> dict:
         return sheet if exam and exam.status == "ready" and exam.header.get("sheet_questions", len(exam.questions)) == count else None
 
     try:
-        sheet, _ = sheets.identify_sheet(path, ALLOWED_COUNTS, lookup)
+        sheet, _, located = sheets.identify_sheet(path, ALLOWED_COUNTS, lookup)
         exam = db.get(Exam, sheet.exam_id)
         if not exam.marks_released:
             raise PermissionError("Your teacher has not released the marks for this exam yet - try again later")
@@ -909,7 +909,7 @@ def grade_student_upload(db: Session, user: User, path: str, name: str) -> dict:
                     "message": "This sheet has already been processed" + (" by your teacher" if official else "") + " - here is the result."}
         d = sheets.scan_dir(exam)
         res, warped, fills = process_scan_full(path, os.path.join(d, "keys.json"), os.path.join(d, "layout.json"),
-                                               os.path.join(d, "baseline.json"))
+                                               os.path.join(d, "baseline.json"), located)
         clean_page = docscan.clean_page(warped)                 # the page the grader already straightened
     except PermissionError as e:
         raise HTTPException(409, str(e))

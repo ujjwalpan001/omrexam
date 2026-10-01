@@ -284,7 +284,8 @@ def format_assets(count: int) -> tuple:
 
 def identify_sheet(path: str, allowed_counts: List[int], lookup) -> "tuple":
     """Find which printed sheet a scan/photo is by reading its pre-printed paper ID with each format's template.
-    `lookup(paper_id, count)` returns the matching Sheet row or None. Returns (sheet, count)."""
+    `lookup(paper_id, count)` returns the matching Sheet row or None. Returns (sheet, count, located), where
+    located = (oriented image, frame corners) can be passed on to grading so the page is not found twice."""
     from omr import bubbles, grader, markers, pipeline, preprocess, warp
     img = preprocess.load_image(path)
     first_layout, _ = format_assets(allowed_counts[0])
@@ -297,5 +298,5 @@ def identify_sheet(path: str, allowed_counts: List[int], lookup) -> "tuple":
         if "?" not in pid:
             sheet = lookup(pid, count)
             if sheet is not None:
-                return sheet, count
+                return sheet, count, (oriented, corners)
     raise ValueError("Could not read the paper ID on this sheet. Make sure the whole sheet is in view, well lit and flat.")
