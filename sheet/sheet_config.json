@@ -53,7 +53,7 @@
   ],
   "id_sections": {
     "registration": {
-      "title": "REGISTRATION NUMBER ({n} DIGITS)",
+      "title": "REGISTRATION NUMBER (LAST {n} DIGITS)",
       "digits": 5
     },
     "paper_id": {

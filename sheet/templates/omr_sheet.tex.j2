@@ -148,17 +148,17 @@
 
 \vspace{9pt}
 %% Roll number, section, date
-\noindent\textbf{Regn No:}\enspace\raisebox{-1.6mm}{\begin{tikzpicture}[baseline=0pt]
-  \draw[thick, step=0.6cm] (0,0) grid ( (( exam.roll_no_digits * 0.6 ))cm, 0.6cm );
-\end{tikzpicture}}\hfill
+\noindent\textbf{Regn No:}\enspace\raisebox{-2mm}{\begin{tikzpicture}\draw[thick] (0,0) rectangle (0.5\linewidth,0.75cm);\end{tikzpicture}}\hfill
 \textbf{Section:}\enspace\rule{1.6cm}{0.4pt}
 
 \vspace{9pt}
 \noindent\textbf{Date:}\enspace\raisebox{-1.6mm}{\begin{tikzpicture}[baseline=0pt]\draw[thick, step=0.6cm] (0,0) grid (1.2cm, 0.6cm);\end{tikzpicture}}\raisebox{0.2ex}{\,/\,}\raisebox{-1.6mm}{\begin{tikzpicture}[baseline=0pt]\draw[thick, step=0.6cm] (0,0) grid (1.2cm, 0.6cm);\end{tikzpicture}}\raisebox{0.2ex}{\,/\,}\raisebox{-1.6mm}{\begin{tikzpicture}[baseline=0pt]\draw[thick, step=0.6cm] (0,0) grid (2.4cm, 0.6cm);\end{tikzpicture}}
 
 \vspace{9pt}
-\noindent\fbox{\parbox{\dimexpr\linewidth-2\fboxsep-2\fboxrule\relax}{\footnotesize\textbf{Instructions:} Fill each bubble completely with a dark pen or pencil. Only one answer per question.
-(% if paper_id_digits %)Fill the registration number bubbles in the answer strip on the right; the paper ID is pre-printed.(% else %)Fill the registration number and paper ID bubbles in the answer strip on the right.(% endif %)\ Do not write on the black frame.}}
+\noindent\fbox{\parbox{\dimexpr\linewidth-2\fboxsep-2\fboxrule\relax}{\footnotesize\textbf{Instructions:}
+(% if exam.instructions %)(( exam.instructions | tex ))(% else %)Fill each bubble completely with a dark pen or pencil. Only one answer per question.
+Write your full registration number above, and bubble its \textbf{last (( exam.roll_no_digits )) digits} in the answer strip on the right.
+(% if not paper_id_digits %)Also fill the paper ID bubbles.(% else %)The paper ID is pre-printed.(% endif %)\ Do not write on the black frame.(% endif %)}}
 
 \vspace{10pt}
 

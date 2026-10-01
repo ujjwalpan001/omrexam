@@ -842,3 +842,20 @@ def test_installable_app_files():
     assert c.get("/icons/..%2Fsw.js").status_code == 404 and c.get("/icons/nope.png").status_code == 404   # no escaping the folder
     page = c.get("/").text
     assert 'rel="manifest"' in page and "apple-touch-icon" in page and "<title>Deskoros</title>" in page
+
+
+def test_instructions_box_default_or_custom():
+    from app.main import DEFAULT_INSTRUCTIONS
+    c = login_teacher()
+    custom = "Use a black pen only. 100% silence & no phones; marks: $5 per #question \\ good luck!"
+    for text, expect in [(DEFAULT_INSTRUCTIONS, "bubble its last 5 digits"), (custom, "Use a black pen only. 100% silence & no phones")]:
+        r = c.post("/api/exams", json=dict(exam_payload(10, students=1), instructions=text))
+        assert r.status_code == 200, r.text
+        e = wait_ready(c, r.json()["id"])
+        assert e["status"] == "ready", e["error"]
+        d = os.path.join(os.environ["OMR_EXAMS_DIR"], str(e["id"]))
+        page = " ".join(fitz.open(os.path.join(d, "sheets", f"{e['sheets'][0]['paper_id']}.pdf"))[0].get_text().split())
+        assert expect in page                                                      # printed as typed, special characters too
+        assert ("$5 per #question" in page) == (text == custom)
+    long = c.post("/api/exams", json=dict(exam_payload(10, students=1), instructions="x" * 601))
+    assert long.status_code == 422

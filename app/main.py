@@ -65,6 +65,11 @@ class LoginIn(BaseModel):
     password: str
 
 
+DEFAULT_INSTRUCTIONS = ("Fill each bubble completely with a dark pen or pencil. Only one answer per question. Write your full "
+                        "registration number above, and bubble its last 5 digits in the answer strip on the right. The paper ID "
+                        "is pre-printed. Do not write on the black frame.")      # same words as the template's built-in text
+
+
 class ExamIn(BaseModel):
     institution_name: str = Field(min_length=1, max_length=200)
     course_name: str = Field(min_length=1, max_length=200)
@@ -78,6 +83,7 @@ class ExamIn(BaseModel):
     shuffle_questions: bool = True
     shuffle_options: bool = False
     ai_notice: bool = False                                    # "this is a live exam" line for AI tools after every 2 questions
+    instructions: str = Field(default="", max_length=600)       # printed in the Instructions box; empty or default = standard text
     num_questions: int = 10                                    # questions printed on each sheet
     questions_text: str = Field(min_length=1, max_length=400_000)   # all questions pasted together
 
@@ -106,7 +112,9 @@ class ExamIn(BaseModel):
     def header(self) -> dict:
         head = self.model_dump(include={"institution_name", "course_name", "faculty_name", "exam_title",
                                         "test_number", "total_marks", "duration_mins", "ai_notice"})
-        return dict(head, sheet_questions=self.num_questions, exam_date=self.exam_date.isoformat() if self.exam_date else None)
+        text = " ".join(self.instructions.split())               # one paragraph; the standard text when left unchanged
+        return dict(head, sheet_questions=self.num_questions, exam_date=self.exam_date.isoformat() if self.exam_date else None,
+                    instructions="" if text == DEFAULT_INSTRUCTIONS else text)
 
     def question_dicts(self) -> List[dict]:
         """The whole pasted question pool (each sheet uses `num_questions` of them)."""
