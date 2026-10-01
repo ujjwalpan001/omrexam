@@ -79,3 +79,39 @@ def test_bubbles_read_from_a_photo(tmp_path, sheet, rotate):
     res, _, _ = process_scan_full(str(path), config.NO_KEYS_PATH, config.LAYOUT_PATH, config.BASELINE_PATH)
     assert res["registration"] == "12345"
     assert all(res["answers"][str(q)] == "ABCD"[q % 4] for q in range(1, 11))
+
+
+def busy_cloth(H, W, seed):
+    """A red cloth with bright yellow / cream patterns and dark lines: the paper cannot be found by brightness or edges."""
+    rng = np.random.default_rng(seed)
+    img = np.zeros((H, W, 3), np.uint8)
+    img[:] = (30, 30, 150)
+    for _ in range(900):
+        colour = (200, 220, 235) if rng.random() < 0.3 else (40, 200, 230)
+        cv2.ellipse(img, (int(rng.integers(0, W)), int(rng.integers(0, H))), (int(rng.integers(8, 60)), int(rng.integers(4, 30))),
+                    float(rng.integers(0, 180)), 0, 360, colour, -1 if rng.random() < 0.6 else 4)
+    for _ in range(120):
+        p = rng.integers(0, [W, H], size=(2, 2))
+        cv2.line(img, tuple(map(int, p[0])), tuple(map(int, p[1])), (20, 20, 20), int(rng.integers(2, 8)))
+    return img
+
+
+@pytest.mark.parametrize("corners,rotate", [([[230, 330], [1180, 290], [1240, 1650], [190, 1700]], 0),     # fills most of it
+                                            ([[420, 520], [1050, 500], [1080, 1400], [400, 1420]], 0),      # small in the picture
+                                            ([[300, 420], [1150, 260], [1300, 1500], [380, 1680]], 2)])     # tilted, upside down
+def test_bubbles_read_from_a_photo_on_a_busy_background(tmp_path, sheet, corners, rotate):
+    H, W = 1920, 1440                                                   # a phone camera frame, portrait
+    page = cv2.cvtColor(sheet, cv2.COLOR_GRAY2BGR)
+    src = np.float32([[0, 0], [page.shape[1], 0], [page.shape[1], page.shape[0]], [0, page.shape[0]]])
+    M = cv2.getPerspectiveTransform(src, np.float32(corners))
+    mask = cv2.warpPerspective(np.full(page.shape[:2], 255, np.uint8), M, (W, H))
+    img = np.where(mask[..., None] > 0, (cv2.warpPerspective(page, M, (W, H)) * 0.93).astype(np.uint8), busy_cloth(H, W, len(corners[0]) + rotate))
+    img = cv2.GaussianBlur(img, (5, 5), 0)
+    for _ in range(rotate):
+        img = cv2.rotate(img, cv2.ROTATE_90_CLOCKWISE)
+    path = tmp_path / "cloth.jpg"
+    cv2.imwrite(str(path), img, [cv2.IMWRITE_JPEG_QUALITY, 90])
+    res, warped, _ = process_scan_full(str(path), config.NO_KEYS_PATH, config.LAYOUT_PATH, config.BASELINE_PATH)
+    assert res["registration"] == "12345"
+    assert all(res["answers"][str(q)] == "ABCD"[q % 4] for q in range(1, 11))
+    assert docscan.clean_page(warped).shape == (config.CANONICAL_HEIGHT, config.CANONICAL_WIDTH)

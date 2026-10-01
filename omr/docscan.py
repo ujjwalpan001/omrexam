@@ -106,13 +106,21 @@ def clean_page(gray: np.ndarray, mode: str = "gray") -> np.ndarray:
     return to_bw(flat) if mode == "bw" else flat
 
 
-def prepare_photo(img: np.ndarray) -> np.ndarray:
-    """Photo -> straight, shadow-free A4 page at canonical size (used before reading the bubbles)."""
+def prepare_photo(img: np.ndarray, quad: Optional[np.ndarray] = None) -> np.ndarray:
+    """Photo -> straight, shadow-free A4 page at canonical size (used before reading the bubbles).
+    `quad` = the page corners when already known (TL, TR, BR, BL in `img` pixels); otherwise the paper is looked for."""
     gray = img if img.ndim == 2 else cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     if max(gray.shape) > MAX_SIDE:
         f = MAX_SIDE / max(gray.shape)
         gray = cv2.resize(gray, None, fx=f, fy=f, interpolation=cv2.INTER_AREA)
-    page = remove_shadows(straighten(gray, find_page_quad(gray)))
+        quad = None if quad is None else quad * f
+    if quad is None:
+        page = remove_shadows(straighten(gray, find_page_quad(gray)))
+    else:
+        size = (config.CANONICAL_WIDTH, config.CANONICAL_HEIGHT)
+        dst = np.array([[0, 0], [size[0] - 1, 0], [size[0] - 1, size[1] - 1], [0, size[1] - 1]], dtype=np.float32)
+        page = remove_shadows(cv2.warpPerspective(gray, cv2.getPerspectiveTransform(np.float32(quad), dst), size,
+                                                  flags=cv2.INTER_CUBIC, borderValue=255))
     m = 12
     page[:m], page[-m:], page[:, :m], page[:, -m:] = 255, 255, 255, 255            # clean white margin
     return page

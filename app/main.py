@@ -285,7 +285,7 @@ def grade_file(db: Session, exam: Exam, path: str, name: str, replace: bool = Fa
     d = sheets.scan_dir(exam)
     res, warped, fills = process_scan_full(path, os.path.join(d, "keys.json"), os.path.join(d, "layout.json"),
                                            os.path.join(d, "baseline.json"))
-    clean_page = docscan.scan_document(preprocess.load_image_color(path), "gray")
+    clean_page = docscan.clean_page(warped)                 # the page the grader already straightened
     res["file"] = name
     sheet = next((s for s in exam.sheets if s.paper_id == res["paper_id"]), None)
     res["saved"] = False
@@ -910,7 +910,7 @@ def grade_student_upload(db: Session, user: User, path: str, name: str) -> dict:
         d = sheets.scan_dir(exam)
         res, warped, fills = process_scan_full(path, os.path.join(d, "keys.json"), os.path.join(d, "layout.json"),
                                                os.path.join(d, "baseline.json"))
-        clean_page = docscan.scan_document(preprocess.load_image_color(path), "gray")
+        clean_page = docscan.clean_page(warped)                 # the page the grader already straightened
     except PermissionError as e:
         raise HTTPException(409, str(e))
     except SheetOfAnotherStudent as e:

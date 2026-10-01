@@ -89,6 +89,11 @@ def locate_page(img, layout_path: str):
         try:
             return markers.detect_and_orient_markers(docscan.prepare_photo(img), layout)
         except markers.MarkerError:
+            pass
+        try:                                    # busy background: find the black frame itself, then the page around it
+            page = docscan.prepare_photo(img, markers.page_quad_from_frame(img, layout))
+            return markers.detect_and_orient_markers(page, layout)
+        except markers.MarkerError:
             raise direct_error
 
 

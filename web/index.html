@@ -213,9 +213,161 @@ function Text({label, value, onChange, type = "text", ...rest}) {
 }
 
 /* ───────────── in-page camera (falls back to the phone's camera app when the browser blocks getUserMedia) ───────────── */
+/* ───────────── finding the answer sheet in a camera frame (runs on the phone, no libraries) ─────────────
+   Every sheet has the same thick black frame (with a solid header bar) on its right side. It stands out on any
+   background, so we look for it and work out where the whole A4 page is from its 4 corners. */
+const PageFinder = (() => {
+  const PAGE = {w: 210, h: 297}, FRAME = {x0: 133.3, y0: 9.3, x1: 202.7, y1: 287.7, header: 10};
+
+  function homography(src, dst) {               // 4 point pairs -> 3x3 matrix (as 9 numbers) mapping src onto dst
+    const A = [];
+    for (let i = 0; i < 4; i++) {
+      const [x, y] = src[i], [u, v] = dst[i];
+      A.push([x, y, 1, 0, 0, 0, -u * x, -u * y, u], [0, 0, 0, x, y, 1, -v * x, -v * y, v]);
+    }
+    for (let c = 0; c < 8; c++) {               // Gauss-Jordan elimination
+      let p = c;
+      for (let r = c + 1; r < 8; r++) if (Math.abs(A[r][c]) > Math.abs(A[p][c])) p = r;
+      [A[c], A[p]] = [A[p], A[c]];
+      if (Math.abs(A[c][c]) < 1e-12) return null;
+      for (let r = 0; r < 8; r++) if (r !== c) {
+        const f = A[r][c] / A[c][c];
+        for (let k = c; k < 9; k++) A[r][k] -= f * A[c][k];
+      }
+    }
+    return [...Array(8).keys()].map(i => A[i][8] / A[i][i]).concat(1);
+  }
+  const apply = (H, [x, y]) => { const w = H[6] * x + H[7] * y + H[8]; return [(H[0] * x + H[1] * y + H[2]) / w, (H[3] * x + H[4] * y + H[5]) / w]; };
+
+  function gray(ctx, W, Hh) {
+    const d = ctx.getImageData(0, 0, W, Hh).data, g = new Uint8ClampedArray(W * Hh);
+    for (let i = 0, j = 0; i < g.length; i++, j += 4) g[i] = (d[j] * 77 + d[j + 1] * 150 + d[j + 2] * 29) >> 8;
+    return g;
+  }
+
+  // dark = clearly darker than its surroundings (adaptive threshold via an integral image)
+  function darkMask(g, W, Hh) {
+    const I = new Float64Array((W + 1) * (Hh + 1)), r = Math.max(6, Math.round(Math.max(W, Hh) * 0.03)), m = new Uint8Array(W * Hh);
+    for (let y = 0; y < Hh; y++) { let s = 0; for (let x = 0; x < W; x++) { s += g[y * W + x]; I[(y + 1) * (W + 1) + x + 1] = I[y * (W + 1) + x + 1] + s; } }
+    for (let y = 0; y < Hh; y++) {
+      const y0 = Math.max(0, y - r), y1 = Math.min(Hh, y + r + 1);
+      for (let x = 0; x < W; x++) {
+        const x0 = Math.max(0, x - r), x1 = Math.min(W, x + r + 1);
+        const mean = (I[y1 * (W + 1) + x1] - I[y0 * (W + 1) + x1] - I[y1 * (W + 1) + x0] + I[y0 * (W + 1) + x0]) / ((x1 - x0) * (y1 - y0));
+        m[y * W + x] = g[y * W + x] < mean - 15 ? 1 : 0;
+      }
+    }
+    return m;
+  }
+
+  // fraction of points along segment a->b that are dark
+  function darkAlong(m, W, Hh, a, b) {
+    let hit = 0, n = 40;
+    for (let i = 0; i < n; i++) {
+      const t = (i + 0.5) / n, x = Math.round(a[0] + (b[0] - a[0]) * t), y = Math.round(a[1] + (b[1] - a[1]) * t);
+      let dark = false;
+      for (let dy = -1; dy <= 1 && !dark; dy++) for (let dx = -1; dx <= 1 && !dark; dx++) {
+        const xx = x + dx, yy = y + dy;
+        if (xx >= 0 && yy >= 0 && xx < W && yy < Hh && m[yy * W + xx]) dark = true;
+      }
+      if (dark) hit++;
+    }
+    return hit / n;
+  }
+
+  // -> page corners [TL, TR, BR, BL] (header bar on top) in the coordinates of the given canvas, or null
+  function find(ctx, W, Hh) {
+    const m = darkMask(gray(ctx, W, Hh), W, Hh), seen = new Uint8Array(W * Hh), stack = new Int32Array(W * Hh);
+    const minPix = W * Hh * 0.002, want = (FRAME.y1 - FRAME.y0) / (FRAME.x1 - FRAME.x0);
+    let best = null, bestSize = 0;
+    for (let start = 0; start < m.length; start++) {
+      if (!m[start] || seen[start]) continue;
+      let top = 0, n = 0, sMin = Infinity, sMax = -Infinity, dMin = Infinity, dMax = -Infinity, c = [];
+      stack[top++] = start; seen[start] = 1;
+      while (top) {                               // flood fill one dark blob, keeping its 4 extreme corners
+        const p = stack[--top], x = p % W, y = (p / W) | 0;
+        n++;
+        const s = x + y, d = x - y;
+        if (s < sMin) { sMin = s; c[0] = [x, y]; } if (s > sMax) { sMax = s; c[2] = [x, y]; }
+        if (d > dMax) { dMax = d; c[1] = [x, y]; } if (d < dMin) { dMin = d; c[3] = [x, y]; }
+        if (x > 0 && m[p - 1] && !seen[p - 1]) { seen[p - 1] = 1; stack[top++] = p - 1; }
+        if (x < W - 1 && m[p + 1] && !seen[p + 1]) { seen[p + 1] = 1; stack[top++] = p + 1; }
+        if (y > 0 && m[p - W] && !seen[p - W]) { seen[p - W] = 1; stack[top++] = p - W; }
+        if (y < Hh - 1 && m[p + W] && !seen[p + W]) { seen[p + W] = 1; stack[top++] = p + W; }
+      }
+      if (n < minPix || n <= bestSize) continue;
+      const len = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]);
+      const e = [len(c[0], c[1]), len(c[1], c[2]), len(c[2], c[3]), len(c[3], c[0])];
+      const longS = Math.max(e[0] + e[2], e[1] + e[3]) / 2, shortS = Math.min(e[0] + e[2], e[1] + e[3]) / 2;
+      if (shortS < 12 || Math.abs(longS / shortS - want) / want > 0.3) continue;      // the frame is tall and narrow
+      if ([0, 1, 2, 3].some(i => darkAlong(m, W, Hh, c[i], c[(i + 1) % 4]) < 0.8)) continue;   // all 4 sides solid black
+      // which short side carries the header bar? test a line just inside each short side
+      const shortFirst = e[0] + e[2] < e[1] + e[3] ? 0 : 1;
+      let topIdx = -1, bestInk = 0;
+      for (const i of [shortFirst, shortFirst + 2]) {
+        const a = c[i], b = c[(i + 1) % 4], a2 = c[(i + 3) % 4], b2 = c[(i + 2) % 4];
+        const k = FRAME.header * 0.5 / (FRAME.y1 - FRAME.y0);                          // halfway down the header bar
+        const ink = darkAlong(m, W, Hh, [a[0] + (a2[0] - a[0]) * k, a[1] + (a2[1] - a[1]) * k], [b[0] + (b2[0] - b[0]) * k, b[1] + (b2[1] - b[1]) * k]);
+        if (ink > bestInk) { bestInk = ink; topIdx = i; }
+      }
+      if (bestInk < 0.7) continue;
+      const frame = [0, 1, 2, 3].map(j => c[(topIdx + j) % 4]);
+      const H = homography([[FRAME.x0, FRAME.y0], [FRAME.x1, FRAME.y0], [FRAME.x1, FRAME.y1], [FRAME.x0, FRAME.y1]], frame);
+      if (!H) continue;
+      best = [[0, 0], [PAGE.w, 0], [PAGE.w, PAGE.h], [0, PAGE.h]].map(p => apply(H, p));
+      bestSize = n;
+    }
+    return best;
+  }
+
+  // the page inside `source` (canvas) straightened to an A4 canvas `outW` wide
+  function straighten(source, quad, outW) {
+    const outH = Math.round(outW * PAGE.h / PAGE.w), H = homography([[0, 0], [outW, 0], [outW, outH], [0, outH]], quad);
+    const sw = source.width, sh = source.height, src = source.getContext("2d").getImageData(0, 0, sw, sh).data;
+    const out = document.createElement("canvas"); out.width = outW; out.height = outH;
+    const octx = out.getContext("2d"), img = octx.createImageData(outW, outH), o = img.data;
+    for (let y = 0; y < outH; y++) for (let x = 0; x < outW; x++) {
+      const [u, v] = apply(H, [x + 0.5, y + 0.5]), sx = u | 0, sy = v | 0, j = (y * outW + x) * 4;
+      if (sx < 0 || sy < 0 || sx >= sw || sy >= sh) { o[j] = o[j + 1] = o[j + 2] = 255; o[j + 3] = 255; continue; }
+      const i = (sy * sw + sx) * 4;
+      o[j] = src[i]; o[j + 1] = src[i + 1]; o[j + 2] = src[i + 2]; o[j + 3] = 255;
+    }
+    octx.putImageData(img, 0, 0);
+    return out;
+  }
+
+  // detect on a copy of `source` scaled to about `size` px on the long side; returns corners in `source` pixels
+  function findIn(source, sw, sh, size = 800) {
+    const f = Math.min(1, size / Math.max(sw, sh)), W = Math.round(sw * f), Hh = Math.round(sh * f);
+    const c = document.createElement("canvas"); c.width = W; c.height = Hh;
+    const ctx = c.getContext("2d", {willReadFrequently: true}); ctx.drawImage(source, 0, 0, W, Hh);
+    const q = find(ctx, W, Hh);
+    return q && q.map(([x, y]) => [x / f, y / f]);
+  }
+
+  return {find, findIn, straighten, A4: PAGE.h / PAGE.w};
+})();
+
+// photo file -> {file, preview: data URL of the straightened page (or the photo itself), found: bool}
+async function previewOf(file, quad) {
+  if (!file.type.startsWith("image/")) return {file, preview: "", found: false};
+  const url = URL.createObjectURL(file);
+  try {
+    const img = await new Promise((ok, bad) => { const i = new Image(); i.onload = () => ok(i); i.onerror = bad; i.src = url; });
+    const c = document.createElement("canvas"); c.width = img.naturalWidth; c.height = img.naturalHeight;
+    c.getContext("2d", {willReadFrequently: true}).drawImage(img, 0, 0);
+    const q = quad || PageFinder.findIn(c, c.width, c.height);
+    if (!q) return {file, preview: url, found: false};
+    return {file, preview: PageFinder.straighten(c, q, 700).toDataURL("image/jpeg", 0.85), found: true};
+  } catch (e) { return {file, preview: url, found: false}; }
+}
+
 function CameraModal({multi, onShot, onClose}) {
-  const video = useRef(null), stream = useRef(null), fallback = useRef(null);
+  const video = useRef(null), stream = useRef(null), fallback = useRef(null), overlay = useRef(null);
   const [err, setErr] = useState(""), [ready, setReady] = useState(false), [count, setCount] = useState(0);
+  const [status, setStatus] = useState("Looking for the answer sheet..."), [auto, setAuto] = useState(true);
+  const track = useRef({quad: null, steady: 0, armed: true, missed: 0, busy: false}), autoRef = useRef(true);
+  autoRef.current = auto;
   useEffect(() => {
     let dead = false;
     (async () => {
@@ -229,25 +381,71 @@ function CameraModal({multi, onShot, onClose}) {
     })();
     return () => { dead = true; if (stream.current) stream.current.getTracks().forEach(t => t.stop()); };
   }, []);
+  useEffect(() => {                                   // look for the sheet ~4 times a second and draw what was found
+    if (!ready) return;
+    const timer = setInterval(() => {
+      const v = video.current, t = track.current;
+      if (!v || !v.videoWidth || t.busy) return;
+      const q = PageFinder.findIn(v, v.videoWidth, v.videoHeight, 640);
+      const diag = Math.hypot(v.videoWidth, v.videoHeight);
+      if (q) {
+        const moved = t.quad ? Math.max(...q.map((p, i) => Math.hypot(p[0] - t.quad[i][0], p[1] - t.quad[i][1]))) / diag : 1;
+        t.steady = moved < 0.02 ? t.steady + 1 : 0;
+        if (moved > 0.15) t.armed = true;            // a different page is in view
+        t.quad = q; t.missed = 0;
+      } else if (++t.missed >= 2) { t.quad = null; t.steady = 0; t.armed = true; }
+      draw(t.quad);
+      if (!t.quad) setStatus("Looking for the answer sheet - fit the whole sheet, with its black border, in view");
+      else if (autoRef.current && t.armed && t.steady >= 4) { t.armed = false; snap(); }
+      else setStatus(autoRef.current && t.armed ? "Sheet found - hold still..." : "Sheet found - tap the button to take the photo");
+    }, 250);
+    return () => clearInterval(timer);
+  }, [ready]);
+  function draw(q) {                                  // outline in screen pixels over the video (object-fit: contain)
+    const v = video.current, c = overlay.current;
+    if (!v || !c) return;
+    const cw = c.clientWidth, ch = c.clientHeight, dpr = window.devicePixelRatio || 1;
+    c.width = cw * dpr; c.height = ch * dpr;
+    const g = c.getContext("2d"); g.scale(dpr, dpr); g.clearRect(0, 0, cw, ch);
+    const k = Math.min(cw / v.videoWidth, ch / v.videoHeight), ox = (cw - v.videoWidth * k) / 2, oy = (ch - v.videoHeight * k) / 2;
+    g.lineWidth = 3;
+    if (q) {
+      g.strokeStyle = "#22c55e"; g.fillStyle = "rgba(34,197,94,.15)"; g.setLineDash([]);
+      g.beginPath(); q.forEach(([x, y], i) => g[i ? "lineTo" : "moveTo"](ox + x * k, oy + y * k)); g.closePath(); g.fill(); g.stroke();
+    } else {                                          // A4-shaped guide
+      const vw = v.videoWidth * k, vh = v.videoHeight * k, gh = Math.min(vh * 0.9, vw * 0.9 * PageFinder.A4), gw = gh / PageFinder.A4;
+      g.strokeStyle = "rgba(255,255,255,.75)"; g.setLineDash([10, 8]);
+      g.strokeRect(ox + (vw - gw) / 2, oy + (vh - gh) / 2, gw, gh);
+    }
+  }
   function snap() {
-    const v = video.current, c = document.createElement("canvas");
+    const v = video.current, c = document.createElement("canvas"), t = track.current;
+    t.busy = true;
     c.width = v.videoWidth; c.height = v.videoHeight; c.getContext("2d").drawImage(v, 0, 0);
-    c.toBlob(b => { onShot(new File([b], "scan_" + Date.now() + ".jpg", {type: "image/jpeg"})); setCount(n => n + 1); if (!multi) onClose(); }, "image/jpeg", 0.92);
+    const quad = t.quad;
+    c.toBlob(b => {
+      t.busy = false; t.armed = false; t.steady = 0;
+      onShot(new File([b], "scan_" + Date.now() + ".jpg", {type: "image/jpeg"}), quad);
+      setCount(n => n + 1); if (!multi) onClose(); else setStatus("Photo added - show the next page");
+    }, "image/jpeg", 0.92);
   }
   const btn = {border: 0, borderRadius: 10, padding: "12px 18px", fontWeight: 700, fontSize: 15, cursor: "pointer"};
   return h("div", {style: {position: "fixed", inset: 0, background: "#000", zIndex: 50, display: "flex", flexDirection: "column"}},
     h("div", {style: {flex: 1, position: "relative", minHeight: 0}},
       h("video", {ref: video, playsInline: true, muted: true, style: {width: "100%", height: "100%", objectFit: "contain", background: "#000"}}),
-      ready && h("div", {style: {position: "absolute", inset: "6% 12%", border: "2px dashed rgba(255,255,255,.7)", borderRadius: 8, pointerEvents: "none"}}),
+      h("canvas", {ref: overlay, style: {position: "absolute", inset: 0, width: "100%", height: "100%", pointerEvents: "none"}}),
+      ready && h("div", {style: {position: "absolute", left: 0, right: 0, top: 0, padding: "10px 14px", color: "#fff", fontSize: 14, textAlign: "center", background: "rgba(0,0,0,.45)"}}, status),
       !ready && !err && h("div", {style: {position: "absolute", inset: 0, display: "grid", placeItems: "center", color: "#fff"}}, "Starting camera..."),
       err && h("div", {style: {position: "absolute", inset: 0, display: "grid", placeItems: "center", padding: 24, color: "#fff", textAlign: "center"}},
         h("div", null, h("div", {style: {marginBottom: 14}}, err),
-          h("input", {ref: fallback, type: "file", accept: "image/*", capture: "environment", hidden: true, onChange: e => { Array.from(e.target.files).forEach(onShot); onClose(); }}),
+          h("input", {ref: fallback, type: "file", accept: "image/*", capture: "environment", hidden: true, onChange: e => { Array.from(e.target.files).forEach(f => onShot(f)); onClose(); }}),
           h("button", {style: Object.assign({}, btn, {background: "#22405f", color: "#fff"}), onClick: () => fallback.current.click()}, "Open the camera app")))),
     h("div", {style: {padding: 16, display: "flex", gap: 12, justifyContent: "center", alignItems: "center", background: "#111"}},
       h("button", {style: Object.assign({}, btn, {background: "#374151", color: "#fff"}), onClick: onClose}, multi && count ? "Done (" + count + ")" : "Cancel"),
       h("button", {disabled: !ready, "aria-label": "Take photo", onClick: snap, style: {width: 68, height: 68, borderRadius: "50%", border: "5px solid #fff", background: ready ? "#ef4444" : "#6b7280", cursor: "pointer"}}),
-      multi && h("div", {style: {color: "#fff", minWidth: 90, fontSize: 13}}, count ? count + " page(s) added" : "Take a photo of each page")));
+      h("label", {style: {color: "#fff", fontSize: 13, display: "flex", alignItems: "center", gap: 6, minWidth: 90}},
+        h("input", {type: "checkbox", checked: auto, onChange: e => setAuto(e.target.checked)}), "Auto"),
+      multi && h("div", {style: {color: "#fff", minWidth: 70, fontSize: 13}}, count ? count + " added" : "")));
 }
 
 /* ───────────── auth ───────────── */
@@ -797,11 +995,16 @@ function ResultDetail({base, back, backLabel, teacher, notice, clearNotice}) {
 
 function StudentScan({onDone}) {
   const [busy, setBusy] = useState(false), [err, setErr] = useState(""), [msg, setMsg] = useState(""), [camOpen, setCamOpen] = useState(false);
-  const [wait, setWait] = useState("");
+  const [wait, setWait] = useState(""), [pending, setPending] = useState(null);         // pending = photo waiting for the student's OK
   const input = useRef(null);
+  async function review(file, quad) {
+    if (!file) return;
+    setErr(""); setMsg(""); setPending({file, preview: "", found: false, loading: true});
+    setPending(await previewOf(file, quad));
+  }
   async function upload(file) {
     if (!file) return;
-    setBusy(true); setErr(""); setMsg(""); setWait("Uploading...");
+    setPending(null); setBusy(true); setErr(""); setMsg(""); setWait("Uploading...");
     try {
       const fd = new FormData(); fd.append("file", file, file.name);
       let j = await (await api("/api/me/scan", {method: "POST", body: fd})).json();
@@ -817,9 +1020,22 @@ function StudentScan({onDone}) {
   }
   return h("div", null, h("h1", null, "Scan your answer sheet"),
     h("p", {className: "sub"}, "Use the camera or upload a scan/photo of your filled answer sheet to check your marks."),
-    camOpen && h(CameraModal, {multi: false, onShot: upload, onClose: () => setCamOpen(false)}),
+    camOpen && h(CameraModal, {multi: false, onShot: review, onClose: () => setCamOpen(false)}),
     h("div", {className: "card"},
-      h("input", {ref: input, type: "file", accept: "image/*,application/pdf", hidden: true, onChange: e => { upload(e.target.files[0]); e.target.value = ""; }}),
+      h("input", {ref: input, type: "file", accept: "image/*,application/pdf", hidden: true, onChange: e => { review(e.target.files[0]); e.target.value = ""; }}),
+      pending ? h("div", null,
+        h("h2", {style: {marginTop: 0}}, "Check the photo"),
+        pending.loading ? h("div", {className: "hint"}, "Finding the sheet in your photo...") :
+          pending.preview ? h("img", {className: "sheetimg", src: pending.preview, alt: "Your answer sheet", style: {maxWidth: 420, display: "block"}}) :
+          h("div", {className: "hint"}, pending.file.name),
+        !pending.loading && h("div", {className: pending.found ? "okm" : "hint", style: pending.found ? null : {color: "var(--warn)"}},
+          pending.found ? "Sheet found. Make sure every bubble you filled is clearly visible." :
+          pending.file.type.startsWith("image/") ? "The black border of the sheet was not found in this photo - it may not be readable. Retake it with the whole sheet in view." :
+          "A PDF is checked on the server."),
+        h("div", {className: "row", style: {marginTop: 10}},
+          h("button", {className: "b", disabled: pending.loading, onClick: () => upload(pending.file)}, "Check this sheet"),
+          h("button", {className: "b sec", onClick: () => { setPending(null); setCamOpen(true); }}, "Retake"),
+          h("button", {className: "b sec", onClick: () => { setPending(null); input.current.click(); }}, "Choose another file"))) :
       h("div", {className: "row"},
         h("button", {className: "b", disabled: busy, onClick: () => setCamOpen(true)}, busy ? "Checking your sheet..." : "Open camera"),
         h("button", {className: "b sec", disabled: busy, onClick: () => input.current.click()}, "Upload file")),
