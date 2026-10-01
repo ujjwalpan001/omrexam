@@ -45,6 +45,25 @@ def exam_dir(exam_id: int) -> str:
     return os.path.join(os.environ.get("OMR_EXAMS_DIR", os.path.join(config.OUTPUT_DIR, "exams")), str(exam_id))
 
 
+def scan_dir(exam) -> str:
+    """The exam's folder, with the files scanning needs (layout, answer keys, ID-bubble baseline). When they are missing -
+    a fresh server disk, or an exam copied in from another database - they are rebuilt from the database."""
+    d = exam_dir(exam.id)
+    layout, keys, baseline = (os.path.join(d, n) for n in ("layout.json", "keys.json", "baseline.json"))
+    if os.path.exists(layout) and os.path.exists(keys) and os.path.exists(baseline):
+        return d
+    os.makedirs(d, exist_ok=True)
+    k = exam.header.get("sheet_questions", len(exam.questions))
+    fmt_layout, fmt_baseline = format_assets(k)         # same layout as every exam with k questions (compiled once, cached)
+    for src, dst in ((fmt_layout, layout), (fmt_baseline, baseline)):
+        if not os.path.exists(dst):
+            shutil.copyfile(src, dst)
+    if not os.path.exists(keys):
+        with open(keys, "w") as f:
+            json.dump({s.paper_id: s.key for s in exam.sheets}, f)
+    return d
+
+
 def compile_tex(tex: str, out_pdf: str) -> None:
     """Run pdflatex twice (TikZ overlay needs two passes) in a scratch folder; raise CompileError with the log."""
     with workers.slot(), tempfile.TemporaryDirectory() as tmp:

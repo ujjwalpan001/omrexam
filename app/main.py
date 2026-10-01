@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 from omr import config, docscan, preprocess
 from omr.pipeline import process_scan_full
 
-from . import auth, results, sheets, textconv, workers
+from . import auth, results, sheets, textconv, transfer, workers
 from .db import Exam, ExamQuestion, Result, ScanJob, Sheet, User, init_db
 
 ALLOWED_COUNTS = sheets.bs.load_config()["allowed_counts"]      # 10, 15, 20, 25, 30
@@ -282,7 +282,7 @@ def grade_file(db: Session, exam: Exam, path: str, name: str, replace: bool = Fa
 
     A sheet the teacher has already checked is skipped (res["skipped"]) unless `replace` is set; a student's self-check
     is always replaced by the teacher's scan."""
-    d = sheets.exam_dir(exam.id)
+    d = sheets.scan_dir(exam)
     res, warped, fills = process_scan_full(path, os.path.join(d, "keys.json"), os.path.join(d, "layout.json"),
                                            os.path.join(d, "baseline.json"))
     clean_page = docscan.scan_document(preprocess.load_image_color(path), "gray")
@@ -582,7 +582,7 @@ def edit_answer(exam_id: int, result_id: int, body: AnswerEditIn, user: User = D
     unclear_left = any(answers.get(str(i + 1)) in ("MULTIPLE", "UNCERTAIN") for i in range(len(sheet.key)))
     if r.needs_review:
         r.resolved = (not unclear_left) and only_question_flags(r.flags)
-    layout = json.load(open(os.path.join(sheets.exam_dir(exam.id), "layout.json")))
+    layout = json.load(open(os.path.join(sheets.scan_dir(exam), "layout.json")))
     redrawn = results.rerender(r.image_path, layout, answers, sheet.key)
     db.commit()
     return dict(teacher_detail(db, exam, r, sheet), image_redrawn=redrawn)
@@ -645,6 +645,22 @@ def exam_csv(exam_id: int, user: User = Depends(auth.teacher_only), db: Session 
                     headers={"Content-Disposition": f'attachment; filename="exam_{exam_id}_results.csv"'})
 
 
+@app.post("/api/exams/import")
+async def import_exams(file: UploadFile = File(...), user: User = Depends(auth.teacher_only), db: Session = Depends(auth.get_db)):
+    """Add exams exported from another copy of the app (export_exams.py). They become this teacher's; nothing here is
+    overwritten, and exams that were imported before are skipped."""
+    data = await file.read()
+    if not 0 < len(data) <= MAX_UPLOAD:
+        raise HTTPException(400, "Empty or too large file")
+    try:
+        n = transfer.merge_data(db.connection(), json.loads(data), user.id)
+        db.commit()
+    except Exception as e:
+        db.rollback()
+        raise HTTPException(400, f"Could not import this file: {e}")
+    return n
+
+
 @app.delete("/api/exams/{exam_id}")
 def delete_exam(exam_id: int, confirm: str = "", user: User = Depends(auth.teacher_only), db: Session = Depends(auth.get_db)):
     """Permanently delete an exam: its questions, sheets, every checked result (so students lose access to them too),
@@ -693,7 +709,7 @@ def exam_results(exam_id: int, user: User = Depends(auth.teacher_only), db: Sess
 
 def save_result(db: Session, exam: Exam, sheet: Sheet, res: dict, warped, fills, clean_page, source: str) -> Result:
     """Store a graded scan (marked sheet image, clean scan, answers). A later scan of the same sheet replaces it."""
-    d = sheets.exam_dir(exam.id)
+    d = sheets.scan_dir(exam)
     layout = json.load(open(os.path.join(d, "layout.json")))
     image = os.path.join(d, "scans", f"{sheet.paper_id}.jpg")
     results.render_student_sheet(warped, layout, fills, res["answers"], sheet.key, image)
@@ -891,7 +907,7 @@ def grade_student_upload(db: Session, user: User, path: str, name: str) -> dict:
             official = existing.source == "teacher"
             return {"result_id": existing.id, "official": official, "already": True,
                     "message": "This sheet has already been processed" + (" by your teacher" if official else "") + " - here is the result."}
-        d = sheets.exam_dir(exam.id)
+        d = sheets.scan_dir(exam)
         res, warped, fills = process_scan_full(path, os.path.join(d, "keys.json"), os.path.join(d, "layout.json"),
                                                os.path.join(d, "baseline.json"))
         clean_page = docscan.scan_document(preprocess.load_image_color(path), "gray")

@@ -501,9 +501,25 @@ function QuestionGeneration({onCreated}) {
 
 /* ───────────── exam list / detail ───────────── */
 function ExamList({open}) {
-  const [rows, setRows] = useState(null);
-  useEffect(() => { api("/api/exams").then(r => r.json()).then(setRows).catch(() => setRows([])); }, []);
-  return h("div", null, h("div", {className: "pagehead"}, h("div", null, h("h1", null, "Exams"), h("p", {className: "sub"}, "Every exam you have created."))),
+  const [rows, setRows] = useState(null), [imp, setImp] = useState(""), [impErr, setImpErr] = useState(""), [busy, setBusy] = useState(false);
+  const input = useRef(null);
+  const load = () => api("/api/exams").then(r => r.json()).then(setRows).catch(() => setRows([]));
+  useEffect(() => { load(); }, []);
+  async function importFile(file) {
+    if (!file) return;
+    setBusy(true); setImp(""); setImpErr("");
+    try {
+      const fd = new FormData(); fd.append("file", file, file.name);
+      const n = await (await api("/api/exams/import", {method: "POST", body: fd})).json();
+      setImp(n.exams + " exam(s) imported" + (n.skipped ? ", " + n.skipped + " already here" : "") + ". " + n.lines.join(" | "));
+      load();
+    } catch (x) { setImpErr(x.message); }
+    setBusy(false);
+  }
+  return h("div", null, h("div", {className: "pagehead"}, h("div", null, h("h1", null, "Exams"), h("p", {className: "sub"}, "Every exam you have created.")),
+      h("input", {ref: input, type: "file", accept: ".json,application/json", hidden: true, onChange: e => { importFile(e.target.files[0]); e.target.value = ""; }}),
+      h("button", {className: "b sec", disabled: busy, title: "Add exams saved with export_exams.py on another computer", onClick: () => input.current.click()}, busy ? "Importing..." : "Import exams")),
+    impErr && h("div", {className: "err"}, impErr), imp && h("div", {className: "okm"}, imp),
     h("div", {className: "card"}, rows === null ? h("div", {className: "hint"}, "Loading...") : rows.length === 0 ? h("div", null, "No exams yet. Choose New exam to create one.") :
       rows.map(e => h("div", {className: "lrow", key: e.id, onClick: () => open(e.id)},
         h("div", {style: {minWidth: 0}}, h("div", {className: "lt"}, e.title),
