@@ -22,6 +22,7 @@ sys.path.insert(0, os.path.join(config.ROOT_DIR, "sheet"))
 import build_sheet as bs  # noqa: E402
 
 LETTERS = "ABCD"
+LOGO_PATH = os.path.join(config.ROOT_DIR, "sheet", "logo.png")      # printed top left (black, for black-and-white printing)
 LATEX_TIMEOUT_S = 90
 # "paranoid" file access: LaTeX may not read absolute paths or parent folders (question text is raw LaTeX)
 LATEX_ENV = dict(os.environ, openin_any="p", openout_any="p")
@@ -74,6 +75,8 @@ def compile_tex(tex: str, out_pdf: str) -> None:
     with workers.slot(), tempfile.TemporaryDirectory() as tmp:
         with open(os.path.join(tmp, "sheet.tex"), "w") as f:
             f.write(tex)
+        if os.path.exists(LOGO_PATH):                 # LaTeX may only read files in its own folder
+            shutil.copyfile(LOGO_PATH, os.path.join(tmp, "logo.png"))
         for _ in range(2):
             try:
                 subprocess.run(["pdflatex", "-interaction=nonstopmode", "-halt-on-error", "-no-shell-escape", "sheet.tex"],
@@ -125,7 +128,8 @@ class ExamSheetBuilder:
         exam = dict(header_dict(header, self.n_reg), questions=shown)
         if page1 is not None:
             exam["page1_questions"] = page1
-        model = dict(self.model, **bs.text_context(self.cfg, exam), paper_id_digits=paper_id, qr_text=qr_text, qr_label=qr_label)
+        model = dict(self.model, **bs.text_context(self.cfg, exam), paper_id_digits=paper_id, qr_text=qr_text, qr_label=qr_label,
+                     ai_notice=bool(header.get("ai_notice")))
         return bs.render_tex(self.cfg, model)
 
 
@@ -140,11 +144,14 @@ def estimate_mm(q: dict) -> float:
     return lines * LINE_MM + opts + 3.5
 
 
-def first_page_count(shown: List[dict]) -> int:
+NOTICE_MM = 3.6                 # one anti-AI notice line
+
+
+def first_page_count(shown: List[dict], notice: bool = False) -> int:
     """How many questions to try beside the answer strip; the rest go on a full-width page 2."""
     used, k = 0.0, 0
-    for q in shown:
-        used += estimate_mm(q)
+    for i, q in enumerate(shown, 1):
+        used += estimate_mm(q) + (NOTICE_MM if notice and i % 2 == 0 else 0)
         if used > PAGE1_BUDGET_MM:
             break
         k += 1
@@ -156,7 +163,7 @@ def compile_paper(builder: "ExamSheetBuilder", header: dict, shown: List[dict], 
 
     The estimate is only a starting point: shrink while it overflows, and try one more question if it all fits."""
     import fitz
-    n, k = len(shown), first_page_count(shown)
+    n, k = len(shown), first_page_count(shown, bool(header.get("ai_notice")))
 
     def attempt(count: int) -> bool:
         compile_tex(builder.tex(header, shown, paper_id, qr, label, page1=count), out_pdf)

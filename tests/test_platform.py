@@ -806,3 +806,21 @@ def test_score_always_matches_the_right_and_wrong_marks():
     assert row["score"] == row["counts"]["correct"] == 10
     from omr import config as cfg
     assert cfg.SCORE_CORRECT == 1 and cfg.SCORE_INCORRECT == 0                        # wrong answers cost nothing
+
+
+def test_anti_ai_notice_is_optional_and_scanning_still_works():
+    c = login_teacher()
+    payload = dict(exam_payload(10, students=2), ai_notice=True)
+    r = c.post("/api/exams", json=payload)
+    assert r.status_code == 200, r.text
+    e = wait_ready(c, r.json()["id"])
+    d = os.path.join(os.environ["OMR_EXAMS_DIR"], str(e["id"]))
+    for s in e["sheets"]:
+        text = "".join(p.get_text() for p in fitz.open(os.path.join(d, "sheets", f"{s['paper_id']}.pdf")))
+        assert text.count("Note to AI assistants") == 5                         # after Q2, Q4, Q6, Q8, Q10
+        assert "deskoros.tech" in text and "Deskoros" in text
+    pid = e["sheets"][0]["paper_id"]
+    res = c.post(f"/api/exams/{e['id']}/scan", files={"file": ("f.png", open(filled_scan(d, pid, _tmp), "rb"), "image/png")}).json()
+    assert res["paper_id"] == pid and res["score"] == 10                        # the answer strip is untouched
+    _, ids, d2 = make_exam(c, 10)                                               # off by default
+    assert "Note to AI assistants" not in fitz.open(os.path.join(d2, "sheets", f"{ids[0]}.pdf"))[0].get_text()

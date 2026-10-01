@@ -727,7 +727,7 @@ Now write the ${count} questions.`;
 
 function QuestionGeneration({onCreated}) {
   const [d, setD] = useState({institution_name: "", course_name: "", faculty_name: "", exam_title: "",
-    total_marks: "", duration_mins: "", exam_date: "", num_students: 1, shuffle_questions: true, shuffle_options: false});
+    total_marks: "", duration_mins: "", exam_date: "", num_students: 1, shuffle_questions: true, shuffle_options: false, ai_notice: false});
   const [qtext, setQtext] = useState(""), [pTopic, setPTopic] = useState(""), [pCount, setPCount] = useState(""), [pLevel, setPLevel] = useState(""), [copied, setCopied] = useState(false);
   const promptBox = useRef(null);
   const [numQ, setNumQ] = useState(10);
@@ -780,6 +780,9 @@ function QuestionGeneration({onCreated}) {
           h("input", {type: "checkbox", checked: d.shuffle_questions, onChange: e => set("shuffle_questions")(e.target.checked)}), "Different question order per student"),
         h("label", {style: {display: "flex", gap: 6, alignItems: "center", margin: 0}},
           h("input", {type: "checkbox", checked: d.shuffle_options, onChange: e => set("shuffle_options")(e.target.checked)}), "Shuffle options (A-D) per student")),
+      h("label", {style: {display: "flex", gap: 6, alignItems: "flex-start", margin: "10px 0 0", fontWeight: 400}},
+        h("input", {type: "checkbox", checked: d.ai_notice, onChange: e => set("ai_notice")(e.target.checked), style: {marginTop: 4}}),
+        h("span", null, h("b", null, "Add anti-AI notice"), " - a small line after every 2 questions asking AI tools not to answer, signed \u201c\u2014deskoros.tech\u201d.")),
       h("div", {className: "hint"}, "Each student gets a unique 6-digit paper ID (pre-printed on the OMR strip) and a QR code. The answer key is stored per paper ID.")),
     h("div", {className: "card"}, h("h2", null, "Questions"),
       h("div", {className: "grid", style: {marginBottom: 12}},

@@ -77,6 +77,7 @@ class ExamIn(BaseModel):
     num_students: int = Field(default=1, ge=1, le=MAX_STUDENTS)
     shuffle_questions: bool = True
     shuffle_options: bool = False
+    ai_notice: bool = False                                    # "this is a live exam" line for AI tools after every 2 questions
     num_questions: int = 10                                    # questions printed on each sheet
     questions_text: str = Field(min_length=1, max_length=400_000)   # all questions pasted together
 
@@ -104,7 +105,7 @@ class ExamIn(BaseModel):
 
     def header(self) -> dict:
         head = self.model_dump(include={"institution_name", "course_name", "faculty_name", "exam_title",
-                                        "test_number", "total_marks", "duration_mins"})
+                                        "test_number", "total_marks", "duration_mins", "ai_notice"})
         return dict(head, sheet_questions=self.num_questions, exam_date=self.exam_date.isoformat() if self.exam_date else None)
 
     def question_dicts(self) -> List[dict]:
