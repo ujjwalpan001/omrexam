@@ -45,6 +45,11 @@ def exam_dir(exam_id: int) -> str:
     return os.path.join(os.environ.get("OMR_EXAMS_DIR", os.path.join(config.OUTPUT_DIR, "exams")), str(exam_id))
 
 
+def scan_files_ready(exam) -> bool:
+    d = exam_dir(exam.id)
+    return all(os.path.exists(os.path.join(d, n)) for n in ("layout.json", "keys.json", "baseline.json"))
+
+
 def scan_dir(exam) -> str:
     """The exam's folder, with the files scanning needs (layout, answer keys, ID-bubble baseline). When they are missing -
     a fresh server disk, or an exam copied in from another database - they are rebuilt from the database."""
@@ -263,6 +268,11 @@ def formats_dir() -> str:
     return os.environ.get("OMR_FORMATS_DIR", os.path.join(config.OUTPUT_DIR, "formats"))
 
 
+def format_ready(count: int) -> bool:
+    out = os.path.join(formats_dir(), str(count))
+    return os.path.exists(os.path.join(out, "layout.json")) and os.path.exists(os.path.join(out, "baseline.json"))
+
+
 def format_assets(count: int) -> tuple:
     """(layout.json, baseline.json) for the sheet format with `count` questions, built once and cached.
     Every exam with that question count shares the same layout, so a sheet can be recognised before we know its exam."""
@@ -282,15 +292,19 @@ def format_assets(count: int) -> tuple:
     return layout_path, baseline_path
 
 
-def identify_sheet(path: str, allowed_counts: List[int], lookup, phone_page: bool = False) -> "tuple":
+def identify_sheet(path: str, allowed_counts: List[int], lookup, phone_page: bool = False, on_step=None) -> "tuple":
     """Find which printed sheet a scan/photo is by reading its pre-printed paper ID with each format's template.
     `lookup(paper_id, count)` returns the matching Sheet row or None. Returns (sheet, count, located), where
     located = (oriented image, frame corners) can be passed on to grading so the page is not found twice."""
     from omr import bubbles, grader, markers, pipeline, preprocess, warp
     img = preprocess.load_image(path)
+    if on_step and not format_ready(allowed_counts[0]):
+        on_step("prepare")
     first_layout, _ = format_assets(allowed_counts[0])
     oriented, corners = pipeline.locate_page(img, first_layout, phone_page)   # the frame is identical in every format
     for count in allowed_counts:
+        if on_step and not format_ready(count):
+            on_step("prepare")                         # first scan of this sheet size since the server started fresh
         layout_path, baseline_path = format_assets(count)
         warped = warp.warp_image(oriented, corners, layout_path)
         fills = bubbles.process_sheet_bubbles(warped, layout_path, baseline_path)

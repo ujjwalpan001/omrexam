@@ -42,8 +42,9 @@ def load_image_color(filepath: str):
     return img
 
 
-def split_pages(filepath: str, out_dir: str) -> list:
-    """One image file per page: a PDF is rendered page by page (200 DPI), an image is returned as it is."""
+def split_pages(filepath: str, out_dir: str, on_page=None) -> list:
+    """One image file per page: a PDF is rendered page by page (200 DPI), an image is returned as it is.
+    `on_page(done, total)` is called after each page (for progress displays)."""
     if not filepath.lower().endswith('.pdf'):
         return [filepath]
     import fitz
@@ -53,6 +54,8 @@ def split_pages(filepath: str, out_dir: str) -> list:
             out = os.path.join(out_dir, f"{os.path.splitext(os.path.basename(filepath))[0]}_p{i + 1:03d}.png")
             page.get_pixmap(dpi=200, colorspace=fitz.csGRAY).save(out)
             paths.append(out)
+            if on_page:
+                on_page(i + 1, doc.page_count)
     return paths
 
 

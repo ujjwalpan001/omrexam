@@ -19,9 +19,10 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from omr import config, docscan, preprocess
+from omr.exceptions import MarkerError
 from omr.pipeline import is_phone_page, process_scan_full
 
-from . import auth, results, sheets, textconv, transfer, workers
+from . import auth, results, sheets, textconv, workers
 from .db import Exam, ExamQuestion, Result, ScanJob, Sheet, User, init_db
 
 ALLOWED_COUNTS = sheets.bs.load_config()["allowed_counts"]      # 10, 15, 20, 25, 30
@@ -283,6 +284,8 @@ def grade_file(db: Session, exam: Exam, path: str, name: str, replace: bool = Fa
 
     A sheet the teacher has already checked is skipped (res["skipped"]) unless `replace` is set; a student's self-check
     is always replaced by the teacher's scan."""
+    if on_step and not sheets.scan_files_ready(exam):
+        on_step("prepare")                      # first sheet after a fresh start: the exam's sheet layout is rebuilt
     d = sheets.scan_dir(exam)
     res, warped, fills = process_scan_full(path, os.path.join(d, "keys.json"), os.path.join(d, "layout.json"),
                                            os.path.join(d, "baseline.json"), phone_page=is_phone_page(name), on_step=on_step)
@@ -446,10 +449,17 @@ def run_batch(job_id: str, exam_id: int, uploads: List[tuple], tmp, replace: boo
     try:
         exam = db.get(Exam, exam_id)
         job["phase"] = "preparing"
+        prepared_before = 0
+
+        def prepared(done, total):
+            job["prepared"] = prepared_before + done
+
         for path, name in uploads:
             try:
                 with workers.slot():
-                    pages = preprocess.split_pages(path, tmp.name)
+                    pages = preprocess.split_pages(path, tmp.name, on_page=prepared)
+                prepared_before += len(pages)
+                job["prepared"] = prepared_before
             except Exception as e:
                 job["items"].append({"page": name, "ok": False, "error": f"Could not open file: {e}"})
                 job["done"] += 1
@@ -496,6 +506,7 @@ def page_done(job: dict, started: float) -> None:
 def batch_json(job: dict) -> dict:
     """What the teacher's progress display needs: stage, the page being checked and its step, counts and time left."""
     out = {k: job[k] for k in ("status", "phase", "total", "done", "items", "current")}
+    out["prepared"] = job.get("prepared", 0)
     recent = job["page_seconds"][-10:]
     out["eta_seconds"] = round(sum(recent) / len(recent) * (job["total"] - job["done"])) if recent and job["status"] == "running" else None
     out["elapsed_seconds"] = round((job.get("finished_at") or time.time()) - job["started_at"])
@@ -671,22 +682,6 @@ def exam_csv(exam_id: int, user: User = Depends(auth.teacher_only), db: Session 
                     headers={"Content-Disposition": f'attachment; filename="exam_{exam_id}_results.csv"'})
 
 
-@app.post("/api/exams/import")
-async def import_exams(file: UploadFile = File(...), user: User = Depends(auth.teacher_only), db: Session = Depends(auth.get_db)):
-    """Add exams exported from another copy of the app (export_exams.py). They become this teacher's; nothing here is
-    overwritten, and exams that were imported before are skipped."""
-    data = await file.read()
-    if not 0 < len(data) <= MAX_UPLOAD:
-        raise HTTPException(400, "Empty or too large file")
-    try:
-        n = transfer.merge_data(db.connection(), json.loads(data), user.id)
-        db.commit()
-    except Exception as e:
-        db.rollback()
-        raise HTTPException(400, f"Could not import this file: {e}")
-    return n
-
-
 @app.delete("/api/exams/{exam_id}")
 def delete_exam(exam_id: int, confirm: str = "", user: User = Depends(auth.teacher_only), db: Session = Depends(auth.get_db)):
     """Permanently delete an exam: its questions, sheets, every checked result (so students lose access to them too),
@@ -824,6 +819,26 @@ async def student_scan(file: UploadFile = File(...), user: User = Depends(auth.s
     return scan_job_json(db, job)
 
 
+@app.get("/api/me/scans")
+def student_recent_scans(user: User = Depends(auth.student_only), db: Session = Depends(auth.get_db)):
+    """The student's uploads of the last day that are still waiting or that failed (done ones are under Results)."""
+    since = dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=1)
+    rows = (db.query(ScanJob).filter(ScanJob.user_id == user.id, ScanJob.created >= since, ScanJob.status != "done")
+            .order_by(ScanJob.id.desc()).limit(10).all())
+    return [scan_job_json(db, j) for j in rows]
+
+
+@app.delete("/api/me/scans/{job_id}")
+def student_dismiss_scan(job_id: int, user: User = Depends(auth.student_only), db: Session = Depends(auth.get_db)):
+    """Hide a failed upload from the list."""
+    job = db.get(ScanJob, job_id)
+    if not job or job.user_id != user.id or job.status != "failed":
+        raise HTTPException(404, "Upload not found")
+    db.delete(job)
+    db.commit()
+    return {"ok": True}
+
+
 @app.get("/api/me/scan/{job_id}")
 def student_scan_status(job_id: int, user: User = Depends(auth.student_only), db: Session = Depends(auth.get_db)):
     job = db.get(ScanJob, job_id)
@@ -833,7 +848,9 @@ def student_scan_status(job_id: int, user: User = Depends(auth.student_only), db
 
 
 def scan_job_json(db: Session, job: ScanJob) -> dict:
-    out = {"job": job.id, "status": job.status}
+    out = {"job": job.id, "status": job.status, "name": job.name, "created": job.created.isoformat() if job.created else None}
+    if job.status == "working":
+        out["step"] = SCAN_STEPS.get(job.id, "wait")
     if job.status == "queued":                  # 1 = next in line
         out["position"] = db.query(ScanJob).filter(ScanJob.status == "queued", ScanJob.id < job.id).count() + 1
     elif job.status == "done":
@@ -843,21 +860,43 @@ def scan_job_json(db: Session, job: ScanJob) -> dict:
     return out
 
 
+SCAN_STEPS: dict = {}                           # job id -> step being worked on (shown to the waiting student)
+STUCK_AFTER = dt.timedelta(minutes=10)            # a sheet "being checked" longer than this has hung
+MAX_ATTEMPTS = 2                                  # a sheet that took the server down twice is not tried again
+
+
+def log(msg: str) -> None:
+    print(f"[scan queue] {msg}", flush=True)       # shows up in the server logs (Render / docker logs)
+
+
 def start_scan_workers() -> None:
-    """Start the background graders once (one per worker slot). Uploads left 'working' by a restart are queued again."""
+    """Start the background graders once (one per worker slot). Uploads left 'working' by a restart are queued again,
+    unless they were already tried MAX_ATTEMPTS times (then they probably crashed the server - fail them instead)."""
     with SCAN_CLAIM:
         if any(t.is_alive() for t in SCAN_THREADS):
             return
-        from .db import SessionLocal
-        db = SessionLocal()
-        try:
-            db.query(ScanJob).filter_by(status="working").update({"status": "queued"})
-            db.commit()
-        finally:
-            db.close()
+        recover_unfinished_scans()
         SCAN_THREADS[:] = [threading.Thread(target=scan_worker, daemon=True) for _ in range(workers.WORKERS)]
         for t in SCAN_THREADS:
             t.start()
+        log(f"{len(SCAN_THREADS)} worker(s) started")
+
+
+def recover_unfinished_scans() -> None:
+    """After a restart: uploads that were being checked go back in the queue - unless they were already tried
+    MAX_ATTEMPTS times, which means they probably took the server down; those fail instead of crashing it again."""
+    from .db import SessionLocal
+    db = SessionLocal()
+    try:
+        for job in db.query(ScanJob).filter_by(status="working").all():
+            if (job.attempts or 0) >= MAX_ATTEMPTS:
+                job.status, job.error_code = "failed", 500
+                job.error = "The server stopped while checking this sheet - please take a new photo and upload it again."
+            else:
+                job.status = "queued"
+        db.commit()
+    finally:
+        db.close()
 
 
 def claim_next_scan() -> Optional[int]:
@@ -865,10 +904,18 @@ def claim_next_scan() -> Optional[int]:
     with SCAN_CLAIM:
         db = SessionLocal()
         try:
+            now = dt.datetime.now(dt.timezone.utc)
+            for job in db.query(ScanJob).filter_by(status="working").all():          # abandoned jobs: give up on them
+                started = job.started_at and (job.started_at if job.started_at.tzinfo else job.started_at.replace(tzinfo=dt.timezone.utc))
+                if started and now - started > STUCK_AFTER and job.id not in SCAN_STEPS:
+                    job.status, job.error_code = "failed", 500
+                    job.error = "Checking this sheet took too long - please upload it again."
+                    log(f"job {job.id} was abandoned - marked failed")
             job = db.query(ScanJob).filter_by(status="queued").order_by(ScanJob.id).first()
             if job is None:
+                db.commit()
                 return None
-            job.status = "working"
+            job.status, job.started_at, job.attempts = "working", now, (job.attempts or 0) + 1
             db.commit()
             return job.id
         finally:
@@ -876,26 +923,56 @@ def claim_next_scan() -> Optional[int]:
 
 
 def scan_worker() -> None:
+    """Grade queued student uploads forever. Any error is logged and the loop carries on - it must never stop."""
     while True:
-        SCAN_WAKE.clear()
-        job_id = claim_next_scan()
+        try:
+            SCAN_WAKE.clear()
+            job_id = claim_next_scan()
+        except Exception as e:                    # e.g. the database connection dropped: wait and try again
+            log(f"could not read the queue ({str(e).splitlines()[0][:200]}) - retrying in 5 s")
+            time.sleep(5)
+            continue
         if job_id is None:
             SCAN_WAKE.wait(5)
             continue
         try:
             run_scan_job(job_id)
-        except Exception:
-            pass                                # never let one bad upload stop the worker
+        except Exception as e:
+            log(f"job {job_id} crashed: {e}")
+            fail_scan(job_id, "Something went wrong while checking this sheet - please upload it again.")
+        finally:
+            SCAN_STEPS.pop(job_id, None)
+
+
+def fail_scan(job_id: int, message: str) -> None:
+    from .db import SessionLocal
+    db = SessionLocal()
+    try:
+        job = db.get(ScanJob, job_id)
+        if job and job.status == "working":
+            job.status, job.error, job.error_code = "failed", message, 500
+            db.commit()
+    except Exception as e:
+        log(f"job {job_id}: could not mark it failed ({e}) - it will time out instead")
+    finally:
+        db.close()
 
 
 def run_scan_job(job_id: int) -> None:
     from .db import SessionLocal
     db = SessionLocal()
+    started = time.monotonic()
     try:
         job = db.get(ScanJob, job_id)
+        path, name = job.path, job.name
+
+        def step(s):
+            SCAN_STEPS[job_id] = s
+
+        step("wait")
         try:
             with workers.slot():
-                result = grade_student_upload(db, db.get(User, job.user_id), job.path, job.name)
+                result = grade_student_upload(db, db.get(User, job.user_id), path, name, on_step=step)
             job.status, job.result = "done", result
         except HTTPException as e:
             db.rollback()
@@ -904,8 +981,9 @@ def run_scan_job(job_id: int) -> None:
             db.rollback()
             job.status, job.error, job.error_code = "failed", f"Could not check this sheet: {e}", 500
         db.commit()
-        if os.path.exists(job.path):
-            os.remove(job.path)
+        log(f"job {job_id} {job.status} in {time.monotonic() - started:.1f}s" + (f": {job.error}" if job.status == "failed" else ""))
+        if os.path.exists(path):
+            os.remove(path)
         old = dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=1)
         db.query(ScanJob).filter(ScanJob.status.in_(("done", "failed")), ScanJob.created < old).delete(synchronize_session=False)
         db.commit()
@@ -913,42 +991,54 @@ def run_scan_job(job_id: int) -> None:
         db.close()
 
 
-def grade_student_upload(db: Session, user: User, path: str, name: str) -> dict:
+NO_FRAME = ("We couldn't find the answer sheet's black border in this photo. Take the photo again with the whole sheet "
+            "in view, lying flat, in good light.")
+NOT_RELEASED = "Your sheet has been checked. Your teacher has not released the marks yet - they will appear under Results when released."
+
+
+def grade_student_upload(db: Session, user: User, path: str, name: str, on_step=None) -> dict:
     """Grade a student's own sheet. The sheet is recognised by its pre-printed paper ID, and its registration number must
-    be the student's own. Results saved this way are 'self-check'; an official result from the teacher is never overwritten."""
+    be the student's own. Results saved this way are 'self-check'; an official result from the teacher is never overwritten.
+    The sheet is checked (and the teacher sees it) even before the marks are released; the student only sees the marks
+    once they are released."""
+    step = on_step or (lambda s: None)
+
     def lookup(paper_id: str, count: int):
         sheet = db.query(Sheet).filter_by(paper_id=paper_id).first()
         exam = db.get(Exam, sheet.exam_id) if sheet else None
         return sheet if exam and exam.status == "ready" and exam.header.get("sheet_questions", len(exam.questions)) == count else None
 
     try:
-        sheet, _, located = sheets.identify_sheet(path, ALLOWED_COUNTS, lookup, is_phone_page(name))
+        step("find")
+        sheet, _, located = sheets.identify_sheet(path, ALLOWED_COUNTS, lookup, is_phone_page(name), on_step=step)
         exam = db.get(Exam, sheet.exam_id)
-        if not exam.marks_released:
-            raise PermissionError("Your teacher has not released the marks for this exam yet - try again later")
+        released = bool(exam.marks_released)
         existing = db.query(Result).filter_by(sheet_id=sheet.id).first()
         if existing:                                   # already checked (by the teacher or by an earlier self-check): do not grade again
             if existing.registration != user.reg_no:
                 raise SheetOfAnotherStudent("This sheet has already been processed for a different student ID")
             official = existing.source == "teacher"
-            return {"result_id": existing.id, "official": official, "already": True,
-                    "message": "This sheet has already been processed" + (" by your teacher" if official else "") + " - here is the result."}
+            return {"result_id": existing.id, "official": official, "already": True, "released": released,
+                    "message": ("This sheet has already been processed" + (" by your teacher" if official else "") + " - here is the result.")
+                    if released else NOT_RELEASED}
         d = sheets.scan_dir(exam)
         res, warped, fills = process_scan_full(path, os.path.join(d, "keys.json"), os.path.join(d, "layout.json"),
-                                               os.path.join(d, "baseline.json"), located)
+                                               os.path.join(d, "baseline.json"), located, on_step=step)
         clean_page = docscan.clean_page(warped)                 # the page the grader already straightened
-    except PermissionError as e:
-        raise HTTPException(409, str(e))
     except SheetOfAnotherStudent as e:
         raise HTTPException(403, str(e))
+    except MarkerError:
+        raise HTTPException(422, NO_FRAME)
     except Exception as e:
         raise HTTPException(422, str(e))
     if res["registration"] == "INVALID":
         raise HTTPException(422, "Could not read the registration number - fill all 5 digits clearly and scan again")
     if res["registration"] != user.reg_no:
         raise HTTPException(403, f"This sheet has registration number {res['registration']}, but your ID is {user.reg_no}")
+    step("save")
     row = save_result(db, exam, sheet, res, warped, fills, clean_page, source="student")
-    return {"result_id": row.id, "official": False, "message": "Marks calculated from your upload (self-check)."}
+    return {"result_id": row.id, "official": False, "released": released,
+            "message": "Marks calculated from your upload (self-check)." if released else NOT_RELEASED}
 
 
 start_scan_workers()                            # also picks up uploads still queued from before a restart

@@ -382,7 +382,8 @@ def test_batch_pdf_release_toggle_and_qr_card():
     hidden = student.get("/api/me/results").json()                       # not released: listed as checked, but no marks
     assert len(hidden) == 1 and hidden[0]["released"] is False and "score" not in hidden[0] and "flags" not in hidden[0]
     assert student.get(f"/api/me/results/{hidden[0]['id']}").status_code == 404
-    assert student_upload(student, pngs[0], "m.png", "image/png").status_code == 409
+    early = student_upload(student, pngs[0], "m.png", "image/png")        # before release: checked, but no marks shown
+    assert early.status_code == 200 and early.json()["released"] is False and "score" not in early.json()
     public = TestClient(app)                                            # the QR link alone reveals nothing
     assert public.get(f"/api/qr/{tokens[0]}").status_code == 401
     assert public.get(f"/api/public/r/{tokens[0]}").status_code == 404   # the old public card no longer exists
@@ -734,3 +735,57 @@ def test_student_uploads_wait_in_line_and_are_private():
                 break
             time.sleep(0.25)
         assert j["status"] == "failed" and j["code"] == 422
+
+
+def test_self_check_before_release_is_saved_but_hidden_and_failures_are_listed():
+    c = login_teacher()
+    e, ids, d = make_exam(c, 10, release=False)
+    s = new_student("80803")
+    up = student_upload(s, filled_scan(d, ids[0], _tmp, reg=(8, 0, 8, 0, 3)), "mine.png", "image/png")
+    assert up.status_code == 200 and up.json()["released"] is False and "released" in up.json()["message"]
+    teacher_rows = c.get(f"/api/exams/{e['id']}/results").json()["rows"]                  # the teacher sees it straight away
+    assert any(r["registration"] == "80803" and r["score"] == 10 for r in teacher_rows)
+    hidden = s.get("/api/me/results").json()
+    assert len(hidden) == 1 and hidden[0]["released"] is False and "score" not in hidden[0]
+    assert c.put(f"/api/exams/{e['id']}/release", json={"released": True}).status_code == 200
+    assert s.get("/api/me/results").json()[0]["score"] == 10                               # visible once released
+
+    blank = os.path.join(_tmp, "fail_blank.png")
+    cv2.imwrite(blank, np.full((600, 400), 255, np.uint8))
+    assert student_upload(s, blank, "b.png", "image/png").status_code == 422
+    failed = s.get("/api/me/scans").json()                                                   # a failure stays visible
+    assert len(failed) == 1 and failed[0]["status"] == "failed" and failed[0]["error"]
+    assert new_student("80804").delete(f"/api/me/scans/{failed[0]['job']}").status_code == 404
+    assert s.delete(f"/api/me/scans/{failed[0]['job']}").json() == {"ok": True}
+    assert s.get("/api/me/scans").json() == []
+
+
+def test_scan_queue_survives_errors_and_restarts(monkeypatch):
+    import app.main as m
+    from app.db import ScanJob, SessionLocal
+    real, calls = m.claim_next_scan, []
+
+    def flaky():                                                         # the first read of the queue fails
+        calls.append(1)
+        if len(calls) == 1:
+            raise RuntimeError("connection dropped")
+        return real()
+
+    monkeypatch.setattr(m, "claim_next_scan", flaky)
+    m.SCAN_WAKE.set()
+    s = new_student("80805")
+    blank = os.path.join(_tmp, "q_blank.png")
+    cv2.imwrite(blank, np.full((600, 400), 255, np.uint8))
+    assert student_upload(s, blank, "b.png", "image/png").status_code == 422             # still processed afterwards
+
+    db = SessionLocal()                                                  # restart: re-queue, or give up after 2 tries
+    uid = db.query(ScanJob).filter_by(status="failed").first().user_id
+    again, gave_up = ScanJob(user_id=uid, path="/nonexistent", name="x.jpg", status="working", attempts=1), \
+        ScanJob(user_id=uid, path="/nonexistent", name="y.jpg", status="working", attempts=2)
+    db.add_all([again, gave_up])
+    db.commit()
+    with m.SCAN_CLAIM:                                                   # keep the live workers away while we look
+        m.recover_unfinished_scans()
+        db.expire_all()
+        assert db.get(ScanJob, again.id).status == "queued" and db.get(ScanJob, gave_up.id).status == "failed"
+    db.close()

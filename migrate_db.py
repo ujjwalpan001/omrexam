@@ -9,7 +9,6 @@ With --merge, exams (questions, sheets, results) and their students are ADDED to
 students are matched by email or registration number, everything gets new ids, and an exam whose paper IDs are already
 in the target is skipped, so running it twice is harmless. --teacher gives every copied exam to that existing teacher
 account. Login sessions are not copied.
-If this computer cannot reach the target database, use export_exams.py and the Import button on the site instead.
 
 Generated files (sheet PDFs, scans) are not part of the database. The server rebuilds the files it needs to scan an
 exam's sheets on its own; copy the exams folder separately if you also want the old PDFs and scan images.

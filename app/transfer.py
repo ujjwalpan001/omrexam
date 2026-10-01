@@ -1,4 +1,4 @@
-"""Move exams between databases: export them to a JSON file, merge that file into a database that is already in use.
+"""Move exams between databases (used by migrate_db.py --merge): export them, then merge them into a database in use.
 
 The export holds the exams with their questions, sheets and results, plus the students those results belong to.
 Teachers are not exported: whoever imports the file becomes the owner of every exam in it. Login sessions are left out."""

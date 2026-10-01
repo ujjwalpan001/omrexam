@@ -144,6 +144,8 @@ class ScanJob(Base):
     result: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)              # what the old synchronous upload returned
     error: Mapped[str] = mapped_column(Text, default="")
     error_code: Mapped[int] = mapped_column(Integer, default=0)                      # HTTP status the error maps to
+    attempts: Mapped[int] = mapped_column(Integer, default=0)                        # times a worker started on it
+    started_at: Mapped[Optional[dt.datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     created: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
@@ -166,6 +168,8 @@ def init_db() -> None:
         add_column_if_missing(conn, "results", "resolved", "BOOLEAN DEFAULT FALSE")
         add_column_if_missing(conn, "results", "original_answers", "JSON")
         add_column_if_missing(conn, "results", "edited_at", "TIMESTAMP")
+        add_column_if_missing(conn, "scan_jobs", "attempts", "INTEGER DEFAULT 0")
+        add_column_if_missing(conn, "scan_jobs", "started_at", "TIMESTAMP")
         if not IS_SQLITE:
             # Supabase exposes the public schema through its web API. With row level security on and no policies, that API
             # (anon/authenticated keys) can read nothing; this app connects as the table owner, which is not affected.
