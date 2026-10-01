@@ -11,7 +11,8 @@
 (% endif %)
 (% endmacro %)
 \documentclass[11pt,a4paper]{article}
-\usepackage[margin=0.70in, top=(( text_margin.top ))mm, bottom=(( text_margin.bottom ))mm]{geometry}
+\usepackage[margin=0.70in, top=24mm, headheight=14pt, headsep=5mm, bottom=(( text_margin.bottom ))mm]{geometry}
+\usepackage{fancyhdr}
 \usepackage{mathptmx}
 \usepackage[scaled=.92]{helvet}
 \usepackage[T1]{fontenc}
@@ -29,7 +30,17 @@
 \allowdisplaybreaks
 \setlength{\parindent}{0pt}
 \raggedbottom
+(% if exam %)
+%% Pages after the first: deskoros.tech | institution - test | paper ID, on every question page
+\fancypagestyle{continuation}{\fancyhf{}%
+  \fancyhead[L]{\fontfamily{pag}\fontseries{db}\fontsize{9}{11}\selectfont deskoros.tech}%
+  \fancyhead[C]{\small\textbf{(( exam.institution_name | tex ))} --- (( exam.exam_title | tex ))}%
+  \fancyhead[R]{\small Paper ID: \textbf{(( paper_id_digits if paper_id_digits else '' ))}}%
+  \renewcommand{\headrulewidth}{0.5pt}}
+\pagestyle{continuation}
+(% else %)
 \pagestyle{empty}
+(% endif %)
 
 %% ═══ OMR strip: drawn on page 1 at absolute positions (mm, y down from the page top). ═══
 %% Page 1 only: registration number, questions, paper ID.
@@ -105,6 +116,7 @@
 
 \begin{document}
 \newgeometry{left=(( text_margin.left ))mm, right=(( text_margin.right ))mm, top=(( text_margin.top ))mm, bottom=(( text_margin.bottom ))mm}
+\thispagestyle{empty}
 (% if exam %)
 %% ═══ Header: institution / course / exam details (QR code sits to the right, drawn above) ═══
 \noindent\begin{minipage}[t]{19mm}\vspace{0pt}\centering
@@ -158,12 +170,7 @@
 \end{enumerate}
 \restoregeometry
 (% if questions_p2 %)
-%% ═══ Remaining questions: full text width, no answer strip ═══
-\noindent{\large\bfseries (( exam.institution_name | tex ))} --- (( exam.exam_title | tex ))%
-\hfill{\small Paper ID: (( paper_id_digits if paper_id_digits else '' ))}
-
-\vspace{2pt}\hrule\vspace{10pt}
-
+%% ═══ Remaining questions: full text width, no answer strip (the page header repeats on every page) ═══
 \begin{enumerate}[label=\textbf{Q\arabic*.},leftmargin=*,itemsep=12pt,parsep=0pt,topsep=0pt,%
                   start=(( questions_p1 | length + 1 ))]
 (% for q in questions_p2 %)
