@@ -74,6 +74,13 @@ button.b:disabled{opacity:.45;cursor:default}
 button.b.danger{background:var(--bad);border-color:var(--bad);color:#fff}button.b.danger:hover{background:#862e27}
 details.promptbox{border:1px solid var(--line);border-radius:6px;padding:10px 14px;margin-bottom:12px;background:#fcfbf9}
 details.promptbox summary{cursor:pointer;font-weight:600;color:var(--pri)}
+.reviewbar{display:flex;justify-content:space-between;align-items:center;gap:16px;margin-top:14px;padding:12px 14px;border:1px solid var(--line);border-radius:6px;background:#fcfbf9}
+.swbtn{flex:none;width:52px;height:30px;border-radius:99px;border:0;background:#c5ccd8;position:relative;cursor:pointer}
+.swbtn span{position:absolute;top:3px;left:3px;width:24px;height:24px;border-radius:50%;background:#fff;transition:left .2s}
+.swbtn.on{background:var(--ok)}.swbtn.on span{left:25px}
+.qa.flag{border-color:#e6d6b0;background:#fffdf7}
+.qa .o.pick{cursor:pointer}.qa .o.pick:hover{border-color:#b9b2a4;background:#faf8f5}
+.qtools{display:flex;gap:16px;margin-top:8px;font-size:13px}.qtools a{cursor:pointer;color:var(--pri)}
 .notice{background:var(--pri-weak);color:var(--pri);border:1px solid #d3dce7;border-radius:6px;padding:10px 14px;margin-bottom:16px;font-size:14px;display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
 .notice.warn{background:var(--warn-bg);color:var(--warn);border-color:#e6d6b0}
 .notice button{background:none;border:0;color:inherit;cursor:pointer;font-size:18px;line-height:1;padding:0}
@@ -574,7 +581,7 @@ function ExamResults({examId, refresh, onOpen}) {
   useEffect(() => { api("/api/exams/" + examId + "/results").then(r => r.json()).then(setD).catch(() => {}); }, [examId, refresh]);
   if (!d) return null;
   return h("div", {className: "card"},
-    h("div", {className: "row", style: {justifyContent: "space-between"}}, h("h2", {style: {margin: 0}}, "Results (" + d.scanned + " of " + d.sheets + " sheets checked)"),
+    h("div", {className: "row", style: {justifyContent: "space-between"}}, h("h2", {style: {margin: 0}}, "Results (" + d.scanned + " of " + d.sheets + " sheets checked" + (d.needs_review ? ", " + d.needs_review + " need review" : "") + ")"),
       h("a", {href: "/api/exams/" + examId + "/results.csv"}, h("button", {className: "b"}, "Download all results (CSV)"))),
     d.rows.length === 0 ? h("div", {className: "hint", style: {marginTop: 8}}, "Nothing checked yet.") :
     h("div", {style: {maxHeight: 420, overflow: "auto"}}, h("table", null,
@@ -582,7 +589,8 @@ function ExamResults({examId, refresh, onOpen}) {
       h("tbody", null, d.rows.map(r => h("tr", {key: r.id, className: "clk", onClick: () => onOpen(r.id)}, h("td", null, h("b", null, r.paper_id)), h("td", null, r.registration), h("td", null, r.student || "-"),
         h("td", null, h("b", null, r.score + " / " + r.total)),
         h("td", {style: {fontSize: 12}}, h("span", {style: {color: "var(--ok)"}}, r.counts.correct + " right"), " / ", h("span", {style: {color: "var(--bad)"}}, r.counts.wrong + " wrong"), r.counts.blank ? " / " + r.counts.blank + " blank" : ""),
-        h("td", {style: {fontSize: 12, color: "var(--bad)"}}, r.needs_review ? "needs review" : ""),
+        h("td", {style: {fontSize: 12, color: r.review === "review" ? "var(--bad)" : r.review === "resolved" ? "var(--ok)" : "var(--mut)"}},
+          r.review === "review" ? "needs review" : r.review === "resolved" ? "resolved" : r.review === "edited" ? "edited" : ""),
         h("td", {style: {textAlign: "right"}}, h("span", {style: {color: "var(--pri)", fontWeight: 600, fontSize: 13}}, "View details >"))))))));
 }
 
@@ -705,12 +713,22 @@ function ResultList({open, user, goScan}) {
 }
 
 function ResultDetail({base, back, backLabel, teacher, notice, clearNotice}) {
-  const [r, setR] = useState(null), [err, setErr] = useState("");
+  const [r, setR] = useState(null), [err, setErr] = useState(""), [busy, setBusy] = useState(false), [saveErr, setSaveErr] = useState("");
   useEffect(() => { api(base).then(x => x.json()).then(setR).catch(e => setErr(e.message)); }, [base]);
   if (err) return h("div", {className: "err"}, err);
   if (!r) return "Loading...";
   const who = teacher ? "Student's" : "Your";
   const tag = {correct: ["Correct", "var(--ok)"], wrong: ["Wrong", "var(--bad)"], blank: ["Not answered", "#1d4ed8"], invalid: ["Unclear / multiple marks", "#b45309"]};
+  async function send(path, body) {
+    setBusy(true); setSaveErr("");
+    try { setR(await (await api(base + path, {method: "PATCH", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)})).json()); }
+    catch (x) { setSaveErr(x.message); }
+    setBusy(false);
+  }
+  const edit = (question, answer) => send("/answers", {question, answer});
+  const flaggedLeft = r.questions.filter(q => q.status === "invalid").length;
+  const scannedWord = v => v === "MULTIPLE" ? "several marks" : v === "UNCERTAIN" ? "a faint mark" : v === "BLANK" ? "no answer" : "option " + v;
+  const img = base + "/sheet.jpg" + (r.image_version ? "?v=" + r.image_version : "");
   return h("div", null,
     h("button", {className: "b sec", onClick: back, style: {marginBottom: 12}}, backLabel || "< My results"),
     notice && h("div", {className: "notice"}, h("span", null, notice), h("button", {onClick: clearNotice, "aria-label": "Dismiss"}, "×")),
@@ -725,23 +743,37 @@ function ResultDetail({base, back, backLabel, teacher, notice, clearNotice}) {
       h("div", {className: "stat"}, h("span", {className: "chip c"}, r.counts.correct + " correct"), h("span", {className: "chip w"}, r.counts.wrong + " wrong"),
         h("span", {className: "chip b"}, r.counts.blank + " not answered"), r.counts.invalid > 0 && h("span", {className: "chip"}, r.counts.invalid + " unclear")),
       r.source === "student" && h("div", {className: "hint", style: {marginTop: 8}}, teacher ? "This result came from the student's own upload (self-check). Scan the sheet yourself to make it official." : "Self-check: calculated from your own upload. Your teacher's official result replaces it once they scan your sheet."),
-      r.needs_review && h("div", {className: "hint", style: {color: "#b45309", marginTop: 8}}, (teacher ? "Needs your review: " : "Some answers are under review by your teacher: ") + r.flags.join("; "))),
+      !teacher && r.corrected && h("div", {className: "hint", style: {marginTop: 8}}, "Your teacher corrected some answers after checking the sheet."),
+      !teacher && r.needs_review && h("div", {className: "hint", style: {color: "var(--warn)", marginTop: 8}}, "Some answers are under review by your teacher: " + r.flags.join("; ")),
+      teacher && r.flagged && h("div", {className: "reviewbar"},
+        h("div", null, h("b", {style: {color: r.resolved ? "var(--ok)" : "var(--warn)"}}, r.resolved ? "Review resolved" : "Needs your review"),
+          h("div", {className: "hint", style: {marginTop: 2}}, (r.resolved ? "Was flagged: " : "") + r.flags.join("; ") +
+            (!r.resolved && flaggedLeft ? ". Click the option the student chose in each highlighted question." : ""))),
+        h("button", {className: "swbtn" + (r.resolved ? " on" : ""), disabled: busy, "aria-pressed": r.resolved, title: "Resolved", onClick: () => send("/review", {resolved: !r.resolved})}, h("span", null))),
+      teacher && !r.flagged && r.review === "edited" && h("div", {className: "hint", style: {marginTop: 8}}, "You corrected some answers on this sheet."),
+      saveErr && h("div", {className: "err"}, saveErr)),
     h("div", {className: "two"},
       h("div", null, h("h2", null, teacher ? "Answers" : "Your answers"),
-        r.questions.map(q => h("div", {className: "qa", key: q.number},
+        teacher && h("div", {className: "hint", style: {margin: "-6px 0 10px"}}, "Click an option to correct the student's answer; the score and the marked sheet update."),
+        r.questions.map(q => h("div", {className: "qa" + (teacher && q.status === "invalid" ? " flag" : ""), key: q.number},
           h("div", {className: "qt"}, h("span", null, "Q" + q.number + ". "), h(Math_, null, q.text),
-            h("span", {className: "tag", style: {color: tag[q.status][1]}}, tag[q.status][0])),
-          q.status === "invalid" && h("div", {className: "hint", style: {margin: "0 0 6px", color: "var(--warn)"}}, teacher ? "Several or faint marks were found - check the answer sheet image." : "Several or faint marks were found - your teacher will check this answer."),
+            h("span", {className: "tag", style: {color: tag[q.status][1]}}, tag[q.status][0]),
+            teacher && q.edited && h("span", {className: "tag", style: {color: "var(--mut)"}}, "edited")),
+          q.status === "invalid" && h("div", {className: "hint", style: {margin: "0 0 6px", color: "var(--warn)"}}, teacher ? "Several or faint marks were found - pick the option the student chose, or mark it not answered." : "Several or faint marks were found - your teacher will check this answer."),
           q.options.map((o, k) => { const L = "ABCD"[k], mine = q.your === L, right = q.correct === L;
-            return h("div", {key: L, className: "o " + (right ? "ok" : mine ? "no" : "")},
+            return h("div", {key: L, className: "o " + (right ? "ok" : mine ? "no" : "") + (teacher ? " pick" : ""), onClick: teacher && !busy && !mine ? () => edit(q.number, L) : null,
+                title: teacher && !mine ? "Set as the student's answer" : null},
               h("b", null, L + ". "), h(Math_, null, o),
               right && h("span", {className: "tag", style: {color: "var(--ok)"}}, mine ? "✓ " + who + " answer (correct)" : "✓ Correct answer"),
-              mine && !right && h("span", {className: "tag", style: {color: "var(--bad)"}}, "✗ " + who + " answer")); })))),
+              mine && !right && h("span", {className: "tag", style: {color: "var(--bad)"}}, "✗ " + who + " answer")); }),
+          teacher && (q.status === "wrong" || q.status === "invalid" || q.edited) && h("div", {className: "qtools"},
+            (q.status === "wrong" || q.status === "invalid") && h("a", {onClick: () => !busy && edit(q.number, "BLANK")}, "Mark as not answered"),
+            q.edited && h("a", {onClick: () => !busy && edit(q.number, "ORIGINAL")}, "Undo (the scanner read " + scannedWord(q.scanned) + ")"))))),
       h("div", null, h("h2", null, teacher ? "Answer sheet" : "Your answer sheet"),
         h("div", {className: "legend hint", style: {marginBottom: 8}},
           h("span", null, h("i", {className: "dot", style: {background: "#009600"}}), "correct"), h("span", null, h("i", {className: "dot", style: {background: "#d20000"}}), "wrong"),
           h("span", null, h("i", {className: "dot", style: {background: "#006ec8"}}), "right answer you missed"), h("span", null, h("i", {className: "dot", style: {background: "#ff8c00"}}), "unclear")),
-        h("a", {href: base + "/sheet.jpg", target: "_blank"}, h("img", {className: "sheetimg", src: base + "/sheet.jpg", alt: "Scanned answer sheet"})),
+        h("a", {href: img, target: "_blank"}, h("img", {className: "sheetimg", src: img, alt: "Scanned answer sheet"})),
         h("div", {className: "hint"}, "Tap the sheet to open it full size."),
         h("div", {className: "row", style: {marginTop: 10}}, h("a", {href: base + "/sheet.pdf"}, h("button", {className: "b"}, "Download marked sheet (PDF)")),
           h("a", {href: base + "/clean.pdf"}, h("button", {className: "b sec"}, "Clean scan (PDF)"))))));
@@ -749,16 +781,23 @@ function ResultDetail({base, back, backLabel, teacher, notice, clearNotice}) {
 
 function StudentScan({onDone}) {
   const [busy, setBusy] = useState(false), [err, setErr] = useState(""), [msg, setMsg] = useState(""), [camOpen, setCamOpen] = useState(false);
+  const [wait, setWait] = useState("");
   const input = useRef(null);
   async function upload(file) {
     if (!file) return;
-    setBusy(true); setErr(""); setMsg("");
+    setBusy(true); setErr(""); setMsg(""); setWait("Uploading...");
     try {
       const fd = new FormData(); fd.append("file", file, file.name);
-      const r = await (await api("/api/me/scan", {method: "POST", body: fd})).json();
-      setMsg(r.message); onDone(r.result_id, r.already ? r.message : "");
+      let j = await (await api("/api/me/scan", {method: "POST", body: fd})).json();
+      while (j.status === "queued" || j.status === "working") {          // the sheet waits its turn on the server
+        setWait(j.status === "working" ? "Checking your sheet..." : j.position <= 1 ? "Your sheet is next in line..." : "Waiting in line - " + (j.position - 1) + " sheet" + (j.position === 2 ? "" : "s") + " ahead of yours...");
+        await new Promise(res => setTimeout(res, 1500));
+        j = await (await api("/api/me/scan/" + j.job)).json();
+      }
+      if (j.status === "failed") throw new Error(j.error);
+      setMsg(j.result.message); onDone(j.result.result_id, j.result.already ? j.result.message : "");
     } catch (x) { setErr(x.message); }
-    setBusy(false);
+    setBusy(false); setWait("");
   }
   return h("div", null, h("h1", null, "Scan your answer sheet"),
     h("p", {className: "sub"}, "Use the camera or upload a scan/photo of your filled answer sheet to check your marks."),
@@ -768,6 +807,7 @@ function StudentScan({onDone}) {
       h("div", {className: "row"},
         h("button", {className: "b", disabled: busy, onClick: () => setCamOpen(true)}, busy ? "Checking your sheet..." : "Open camera"),
         h("button", {className: "b sec", disabled: busy, onClick: () => input.current.click()}, "Upload file")),
+      wait && h("div", {className: "hint"}, wait, wait !== "Uploading..." && " You can leave this page - the result will appear under your marks."),
       err && h("div", {className: "err"}, err), msg && h("div", {className: "okm"}, msg),
       h("ul", {className: "hint", style: {lineHeight: 1.7}},
         h("li", null, "Put the whole sheet in view, including the thick black border."),

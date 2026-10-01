@@ -1,4 +1,4 @@
-"""Database models (users, sessions, exams, questions, generated sheets, results).
+"""Database models (users, sessions, exams, questions, generated sheets, results, queued student uploads).
 
 Runs on SQLite by default; set DATABASE_URL to use PostgreSQL (for example Supabase)."""
 import datetime as dt
@@ -127,6 +127,23 @@ class Result(Base):
     flags: Mapped[list] = mapped_column(JSON, default=list)
     image_path: Mapped[str] = mapped_column(String(500), default="")
     source: Mapped[str] = mapped_column(String(10), default="teacher")               # "teacher" (official) | "student" (self-check)
+    resolved: Mapped[bool] = mapped_column(default=False)                            # teacher has dealt with the review flags
+    original_answers: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)    # what the scanner read, for answers the teacher corrected
+    edited_at: Mapped[Optional[dt.datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    created: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=now)
+
+
+class ScanJob(Base):
+    """A student's uploaded sheet waiting its turn; a background worker grades the queue one sheet at a time."""
+    __tablename__ = "scan_jobs"
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    path: Mapped[str] = mapped_column(String(500))                                   # the saved upload (deleted once graded)
+    name: Mapped[str] = mapped_column(String(200))
+    status: Mapped[str] = mapped_column(String(10), default="queued", index=True)    # queued | working | done | failed
+    result: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)              # what the old synchronous upload returned
+    error: Mapped[str] = mapped_column(Text, default="")
+    error_code: Mapped[int] = mapped_column(Integer, default=0)                      # HTTP status the error maps to
     created: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=now)
 
 
@@ -146,6 +163,9 @@ def init_db() -> None:
             conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_reg_no ON users(reg_no)"))
         add_column_if_missing(conn, "exams", "marks_released", "BOOLEAN DEFAULT FALSE")
         add_column_if_missing(conn, "results", "source", "VARCHAR(10) DEFAULT 'teacher'")
+        add_column_if_missing(conn, "results", "resolved", "BOOLEAN DEFAULT FALSE")
+        add_column_if_missing(conn, "results", "original_answers", "JSON")
+        add_column_if_missing(conn, "results", "edited_at", "TIMESTAMP")
         if not IS_SQLITE:
             # Supabase exposes the public schema through its web API. With row level security on and no policies, that API
             # (anon/authenticated keys) can read nothing; this app connects as the table owner, which is not affected.

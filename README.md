@@ -114,6 +114,11 @@ full-width on page 2 (no bubbles there). Only page 1 of each student's paper is 
   - *Results* - one row per checked sheet. **Click a row** for the full view: every question as printed on that student's
     paper, their answer vs the correct one, and the scanned sheet with coloured bubbles (green correct, red wrong, blue the
     right answer that was missed, orange unclear), plus marked-sheet and clean-scan PDFs.
+  - *Fixing flagged answers* - a sheet with a double or faint mark is listed as **needs review**. Open it, click the option the
+    student actually chose in each highlighted question (or *Mark as not answered*), and the score and the marked image update at
+    once. When no unclear answer is left the review is set to **resolved** automatically; the switch at the top of the sheet
+    flips between *needs review* and *resolved* by hand. Every corrected answer shows *edited* and an **Undo** that restores what
+    the scanner read. Students see the corrected score and a note; the results table and CSV (`review_status`) show the state.
   - *Delete exam* - type `delete` in the pop-up. Removes the exam, sheets, QR links, all results (students lose them too)
     and the generated files. Refused while sheets are being generated or checked.
 

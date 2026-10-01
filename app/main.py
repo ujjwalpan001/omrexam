@@ -20,8 +20,8 @@ from sqlalchemy.orm import Session
 from omr import config, docscan, preprocess
 from omr.pipeline import process_scan_full
 
-from . import auth, results, sheets, textconv
-from .db import Exam, ExamQuestion, Result, Sheet, User, init_db
+from . import auth, results, sheets, textconv, workers
+from .db import Exam, ExamQuestion, Result, ScanJob, Sheet, User, init_db
 
 ALLOWED_COUNTS = sheets.bs.load_config()["allowed_counts"]      # 10, 15, 20, 25, 30
 MAX_POOL = 1000
@@ -317,14 +317,17 @@ async def scan_sheet(exam_id: int, file: UploadFile = File(...), user: User = De
     if not 0 < len(data) <= MAX_UPLOAD:
         raise HTTPException(400, "Empty or too large file")
     name = os.path.basename(file.filename or "scan.pdf")
-    with tempfile.TemporaryDirectory() as tmp:
-        path = os.path.join(tmp, "upload" + (os.path.splitext(name)[1].lower() or ".pdf"))
-        with open(path, "wb") as f:
-            f.write(data)
-        try:
-            return grade_file(db, exam, path, name)
-        except Exception as e:
-            raise HTTPException(422, str(e))
+
+    def work():
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "upload" + (os.path.splitext(name)[1].lower() or ".pdf"))
+            with open(path, "wb") as f:
+                f.write(data)
+            try:
+                return grade_file(db, exam, path, name)
+            except Exception as e:
+                raise HTTPException(422, str(e))
+    return await workers.run(work)                  # waits its turn: only a few scans run at once
 
 
 # ── CSV exports ────────────────────────────────────────────────────────
@@ -369,7 +372,7 @@ def exam_results_csv(db: Session, exam: Exam) -> str:
     buf = io.StringIO()
     w = csv.writer(buf)
     w.writerow(["student_no", "paper_id", "registration_no", "student_name", "student_login_id", "status", "score", "total",
-                "percentage", "max_marks", "correct", "wrong", "not_answered", "unclear", "needs_review", "flags", "source",
+                "percentage", "max_marks", "correct", "wrong", "not_answered", "unclear", "needs_review", "review_status", "flags", "source",
                 "scanned_at", "institution", "subject", "exam", "exam_date"] + question_headers(n))
     h = exam.header
     for s in exam.sheets:
@@ -382,8 +385,8 @@ def exam_results_csv(db: Session, exam: Exam) -> str:
         row = [s.student_no, s.paper_id, r.registration if r else "", csv_safe(student.name) if student else "",
                student.reg_no if student else "", "checked" if r else "not scanned",
                r.score if r else "", r.total if r else "", pct_of(r.score, r.total) if r else "", h.get("total_marks") or ""] + counts + [
-               ("yes" if r.needs_review else "no") if r else "", csv_safe("; ".join(r.flags)) if r else "",
-               r.source if r else "", r.created.isoformat(timespec="seconds") if r else "",
+               ("yes" if r.needs_review and not r.resolved else "no") if r else "", results.review_state(r).replace("review", "needs review") if r else "",
+               csv_safe("; ".join(r.flags)) if r else "", r.source if r else "", r.created.isoformat(timespec="seconds") if r else "",
                csv_safe(h["institution_name"]), csv_safe(h["course_name"]), csv_safe(h["exam_title"]), h.get("exam_date") or ""]
         row += question_cells(r.answers if r else None, s.key, n)
         w.writerow(row)
@@ -437,7 +440,8 @@ def run_batch(job_id: str, exam_id: int, uploads: List[tuple], tmp, replace: boo
         exam = db.get(Exam, exam_id)
         for path, name in uploads:
             try:
-                pages = preprocess.split_pages(path, tmp.name)
+                with workers.slot():
+                    pages = preprocess.split_pages(path, tmp.name)
             except Exception as e:
                 job["items"].append({"page": name, "ok": False, "error": f"Could not open file: {e}"})
                 job["done"] += 1
@@ -445,7 +449,8 @@ def run_batch(job_id: str, exam_id: int, uploads: List[tuple], tmp, replace: boo
             for i, page_path in enumerate(pages):
                 label = name if len(pages) == 1 else f"{name} - page {i + 1}"
                 try:
-                    r = grade_file(db, exam, page_path, label, replace)
+                    with workers.slot():                    # one page at a time, so student uploads can get in between
+                        r = grade_file(db, exam, page_path, label, replace)
                     if r.get("skipped"):
                         ex = r["existing"]
                         job["items"].append({"page": label, "ok": False, "skipped": True, "error": "Already processed",
@@ -522,14 +527,83 @@ def teacher_result(db: Session, exam_id: int, result_id: int, user: User) -> tup
     return exam, r, db.get(Sheet, r.sheet_id)
 
 
+def teacher_detail(db: Session, exam: Exam, r: Result, sheet: Sheet) -> dict:
+    items = results.review_items(exam, sheet, r.answers, r.original_answers)
+    counts = {k: sum(1 for i in items if i["status"] == k) for k in ("correct", "wrong", "blank", "invalid")}
+    student = db.query(User).filter_by(reg_no=r.registration, role="student").first()
+    return dict(result_summary(r, exam, sheet), questions=items, counts=counts, student=student.name if student else None,
+                flagged=bool(r.needs_review), edited_at=r.edited_at.isoformat() if r.edited_at else None,
+                image_version=int(r.edited_at.timestamp()) if r.edited_at else 0)
+
+
+class AnswerEditIn(BaseModel):
+    question: int = Field(ge=1, le=100)
+    answer: str                                   # A-D, BLANK, or ORIGINAL (undo: go back to what the scanner read)
+
+    @field_validator("answer")
+    @classmethod
+    def answer_ok(cls, v):
+        v = v.strip().upper()
+        if v not in ("A", "B", "C", "D", "BLANK", "ORIGINAL"):
+            raise ValueError("answer must be A, B, C, D, BLANK or ORIGINAL")
+        return v
+
+
+class ReviewIn(BaseModel):
+    resolved: bool
+
+
+def only_question_flags(flags: list) -> bool:
+    """True when every review flag is about a question (those can be fixed by correcting answers)."""
+    return all(f.startswith("Q") for f in flags)
+
+
+@app.patch("/api/exams/{exam_id}/results/{result_id}/answers")
+def edit_answer(exam_id: int, result_id: int, body: AnswerEditIn, user: User = Depends(auth.teacher_only), db: Session = Depends(auth.get_db)):
+    """Correct one answer of a checked sheet (for example a double mark the scanner could not decide). The score is
+    recalculated, the marked image is redrawn, and the review is marked resolved once no unclear answer is left."""
+    exam, r, sheet = teacher_result(db, exam_id, result_id, user)
+    if body.question > len(sheet.key):
+        raise HTTPException(422, f"This sheet has {len(sheet.key)} questions")
+    q = str(body.question)
+    answers, original = dict(r.answers), dict(r.original_answers or {})
+    if body.answer == "ORIGINAL":
+        if q not in original:
+            raise HTTPException(409, "This answer has not been changed")
+        answers[q] = original.pop(q)
+    else:
+        original.setdefault(q, answers.get(q, "BLANK"))
+        answers[q] = body.answer
+        if original[q] == answers[q]:                      # corrected back to exactly what was read
+            original.pop(q)
+    r.answers, r.original_answers = answers, original or None
+    r.score = results.rescore(answers, sheet.key)
+    r.edited_at = dt.datetime.now(dt.timezone.utc)
+    unclear_left = any(answers.get(str(i + 1)) in ("MULTIPLE", "UNCERTAIN") for i in range(len(sheet.key)))
+    if r.needs_review:
+        r.resolved = (not unclear_left) and only_question_flags(r.flags)
+    layout = json.load(open(os.path.join(sheets.exam_dir(exam.id), "layout.json")))
+    redrawn = results.rerender(r.image_path, layout, answers, sheet.key)
+    db.commit()
+    return dict(teacher_detail(db, exam, r, sheet), image_redrawn=redrawn)
+
+
+@app.patch("/api/exams/{exam_id}/results/{result_id}/review")
+def set_review(exam_id: int, result_id: int, body: ReviewIn, user: User = Depends(auth.teacher_only), db: Session = Depends(auth.get_db)):
+    """Toggle between 'needs review' and 'resolved' for a flagged sheet."""
+    exam, r, sheet = teacher_result(db, exam_id, result_id, user)
+    if not r.needs_review:
+        raise HTTPException(409, "This sheet has nothing flagged")
+    r.resolved = body.resolved
+    db.commit()
+    return teacher_detail(db, exam, r, sheet)
+
+
 @app.get("/api/exams/{exam_id}/results/{result_id}")
 def exam_result_detail(exam_id: int, result_id: int, user: User = Depends(auth.teacher_only), db: Session = Depends(auth.get_db)):
     """One checked sheet in full: every question as that student saw it, their answer, the correct one."""
     exam, r, sheet = teacher_result(db, exam_id, result_id, user)
-    items = results.review_items(exam, sheet, r.answers)
-    counts = {k: sum(1 for i in items if i["status"] == k) for k in ("correct", "wrong", "blank", "invalid")}
-    student = db.query(User).filter_by(reg_no=r.registration, role="student").first()
-    return dict(result_summary(r, exam, sheet), questions=items, counts=counts, student=student.name if student else None)
+    return teacher_detail(db, exam, r, sheet)
 
 
 @app.get("/api/exams/{exam_id}/results/{result_id}/sheet.jpg")
@@ -611,8 +685,10 @@ def exam_results(exam_id: int, user: User = Depends(auth.teacher_only), db: Sess
         rows.append({"id": r.id, "paper_id": by_sheet[r.sheet_id].paper_id, "registration": r.registration,
                      "counts": {k: st.count(k) for k in ("correct", "wrong", "blank", "invalid")},
                      "student": student.name if student else None, "score": r.score, "total": r.total,
-                     "needs_review": r.needs_review, "flags": r.flags, "source": r.source, "scanned_at": r.created.isoformat()})
-    return {"scanned": len(rows), "sheets": len(exam.sheets), "rows": rows}
+                     "needs_review": bool(r.needs_review and not r.resolved), "review": results.review_state(r), "flags": r.flags,
+                     "source": r.source, "scanned_at": r.created.isoformat()})
+    return {"scanned": len(rows), "sheets": len(exam.sheets), "rows": rows,
+            "needs_review": sum(1 for x in rows if x["needs_review"])}
 
 
 def save_result(db: Session, exam: Exam, sheet: Sheet, res: dict, warped, fills, clean_page, source: str) -> Result:
@@ -621,10 +697,12 @@ def save_result(db: Session, exam: Exam, sheet: Sheet, res: dict, warped, fills,
     layout = json.load(open(os.path.join(d, "layout.json")))
     image = os.path.join(d, "scans", f"{sheet.paper_id}.jpg")
     results.render_student_sheet(warped, layout, fills, res["answers"], sheet.key, image)
+    results.save_render_inputs(warped, fills, image)
     results.write_jpeg(clean_page, results.clean_path(image))
     row = db.query(Result).filter_by(sheet_id=sheet.id).first() or Result(exam_id=exam.id, sheet_id=sheet.id)
     row.registration, row.answers, row.score, row.total = res["registration"], res["answers"], res["score"], res["total"]
     row.needs_review, row.flags, row.image_path, row.source = res["needs_review"], res["flags"], image, source
+    row.resolved, row.original_answers, row.edited_at = False, None, None          # a fresh scan starts a fresh review
     row.created = dt.datetime.now(dt.timezone.utc)
     db.add(row)
     db.commit()
@@ -657,7 +735,8 @@ def result_summary(r: Result, exam: Exam, sheet: Sheet) -> dict:
     when = h.get("exam_date") or exam.created.date().isoformat()
     return {"id": r.id, "institution": h["institution_name"], "subject": h["course_name"], "exam": h["exam_title"],
             "exam_date": when, "paper_id": sheet.paper_id, "registration": r.registration, "score": r.score, "total": r.total,
-            "max_marks": h.get("total_marks"), "needs_review": r.needs_review, "flags": r.flags,
+            "max_marks": h.get("total_marks"), "needs_review": bool(r.needs_review and not r.resolved), "flags": r.flags,
+            "review": results.review_state(r), "resolved": bool(r.resolved), "corrected": bool(r.original_answers),
             "scanned_at": r.created.isoformat(), "source": r.source}
 
 
@@ -668,56 +747,169 @@ def my_result(db: Session, user: User, result_id: int) -> Result:
     return r
 
 
+def uploads_dir() -> str:
+    """Where queued student uploads wait (next to the exams folder, e.g. /storage/uploads)."""
+    return os.environ.get("OMR_UPLOADS_DIR") or os.path.normpath(os.path.join(os.path.dirname(sheets.exam_dir(0)), os.pardir, "uploads"))
+
+
+MAX_QUEUED_PER_STUDENT = 3
+SCAN_WAKE = threading.Event()                   # set when an upload arrives, so an idle worker starts at once
+SCAN_CLAIM = threading.Lock()
+SCAN_THREADS: list = []
+
+
 @app.post("/api/me/scan")
 async def student_scan(file: UploadFile = File(...), user: User = Depends(auth.student_only), db: Session = Depends(auth.get_db)):
-    """A student uploads their own filled answer sheet (scan or phone photo) and gets the marks.
-
-    The sheet is recognised by its pre-printed paper ID, and its registration number must be the student's own.
-    Results uploaded this way are marked 'self-check'; an official result from the teacher is never overwritten."""
+    """A student uploads their own filled answer sheet (scan or phone photo). The file is saved and queued straight away;
+    a background worker grades it when its turn comes. Poll GET /api/me/scan/{job} for the result."""
     if not user.reg_no:
         raise HTTPException(409, "Add your registration number first")
+    if db.query(ScanJob).filter(ScanJob.user_id == user.id, ScanJob.status.in_(("queued", "working"))).count() >= MAX_QUEUED_PER_STUDENT:
+        raise HTTPException(429, "You already have sheets waiting to be checked - wait for them to finish")
     data = await file.read()
     if not 0 < len(data) <= MAX_UPLOAD:
         raise HTTPException(400, "Empty or too large file")
     name = os.path.basename(file.filename or "scan.jpg")
+    os.makedirs(uploads_dir(), exist_ok=True)
+    path = os.path.join(uploads_dir(), f"{user.id}_{random.getrandbits(64):016x}" + (os.path.splitext(name)[1].lower() or ".jpg"))
+    with open(path, "wb") as f:
+        f.write(data)
+    job = ScanJob(user_id=user.id, path=path, name=name[:200])
+    db.add(job)
+    db.commit()
+    start_scan_workers()
+    SCAN_WAKE.set()
+    return scan_job_json(db, job)
 
+
+@app.get("/api/me/scan/{job_id}")
+def student_scan_status(job_id: int, user: User = Depends(auth.student_only), db: Session = Depends(auth.get_db)):
+    job = db.get(ScanJob, job_id)
+    if not job or job.user_id != user.id:
+        raise HTTPException(404, "Upload not found")
+    return scan_job_json(db, job)
+
+
+def scan_job_json(db: Session, job: ScanJob) -> dict:
+    out = {"job": job.id, "status": job.status}
+    if job.status == "queued":                  # 1 = next in line
+        out["position"] = db.query(ScanJob).filter(ScanJob.status == "queued", ScanJob.id < job.id).count() + 1
+    elif job.status == "done":
+        out["result"] = job.result
+    elif job.status == "failed":
+        out.update(error=job.error, code=job.error_code)
+    return out
+
+
+def start_scan_workers() -> None:
+    """Start the background graders once (one per worker slot). Uploads left 'working' by a restart are queued again."""
+    with SCAN_CLAIM:
+        if any(t.is_alive() for t in SCAN_THREADS):
+            return
+        from .db import SessionLocal
+        db = SessionLocal()
+        try:
+            db.query(ScanJob).filter_by(status="working").update({"status": "queued"})
+            db.commit()
+        finally:
+            db.close()
+        SCAN_THREADS[:] = [threading.Thread(target=scan_worker, daemon=True) for _ in range(workers.WORKERS)]
+        for t in SCAN_THREADS:
+            t.start()
+
+
+def claim_next_scan() -> Optional[int]:
+    from .db import SessionLocal
+    with SCAN_CLAIM:
+        db = SessionLocal()
+        try:
+            job = db.query(ScanJob).filter_by(status="queued").order_by(ScanJob.id).first()
+            if job is None:
+                return None
+            job.status = "working"
+            db.commit()
+            return job.id
+        finally:
+            db.close()
+
+
+def scan_worker() -> None:
+    while True:
+        SCAN_WAKE.clear()
+        job_id = claim_next_scan()
+        if job_id is None:
+            SCAN_WAKE.wait(5)
+            continue
+        try:
+            run_scan_job(job_id)
+        except Exception:
+            pass                                # never let one bad upload stop the worker
+
+
+def run_scan_job(job_id: int) -> None:
+    from .db import SessionLocal
+    db = SessionLocal()
+    try:
+        job = db.get(ScanJob, job_id)
+        try:
+            with workers.slot():
+                result = grade_student_upload(db, db.get(User, job.user_id), job.path, job.name)
+            job.status, job.result = "done", result
+        except HTTPException as e:
+            db.rollback()
+            job.status, job.error, job.error_code = "failed", str(e.detail), e.status_code
+        except Exception as e:
+            db.rollback()
+            job.status, job.error, job.error_code = "failed", f"Could not check this sheet: {e}", 500
+        db.commit()
+        if os.path.exists(job.path):
+            os.remove(job.path)
+        old = dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=1)
+        db.query(ScanJob).filter(ScanJob.status.in_(("done", "failed")), ScanJob.created < old).delete(synchronize_session=False)
+        db.commit()
+    finally:
+        db.close()
+
+
+def grade_student_upload(db: Session, user: User, path: str, name: str) -> dict:
+    """Grade a student's own sheet. The sheet is recognised by its pre-printed paper ID, and its registration number must
+    be the student's own. Results saved this way are 'self-check'; an official result from the teacher is never overwritten."""
     def lookup(paper_id: str, count: int):
         sheet = db.query(Sheet).filter_by(paper_id=paper_id).first()
         exam = db.get(Exam, sheet.exam_id) if sheet else None
         return sheet if exam and exam.status == "ready" and exam.header.get("sheet_questions", len(exam.questions)) == count else None
 
-    with tempfile.TemporaryDirectory() as tmp:
-        path = os.path.join(tmp, "upload" + (os.path.splitext(name)[1].lower() or ".jpg"))
-        with open(path, "wb") as f:
-            f.write(data)
-        try:
-            sheet, _ = sheets.identify_sheet(path, ALLOWED_COUNTS, lookup)
-            exam = db.get(Exam, sheet.exam_id)
-            if not exam.marks_released:
-                raise PermissionError("Your teacher has not released the marks for this exam yet - try again later")
-            existing = db.query(Result).filter_by(sheet_id=sheet.id).first()
-            if existing:                                   # already checked (by the teacher or by an earlier self-check): do not grade again
-                if existing.registration != user.reg_no:
-                    raise SheetOfAnotherStudent("This sheet has already been processed for a different student ID")
-                official = existing.source == "teacher"
-                return {"result_id": existing.id, "official": official, "already": True,
-                        "message": "This sheet has already been processed" + (" by your teacher" if official else "") + " - here is the result."}
-            d = sheets.exam_dir(exam.id)
-            res, warped, fills = process_scan_full(path, os.path.join(d, "keys.json"), os.path.join(d, "layout.json"),
-                                                   os.path.join(d, "baseline.json"))
-            clean_page = docscan.scan_document(preprocess.load_image_color(path), "gray")
-        except PermissionError as e:
-            raise HTTPException(409, str(e))
-        except SheetOfAnotherStudent as e:
-            raise HTTPException(403, str(e))
-        except Exception as e:
-            raise HTTPException(422, str(e))
+    try:
+        sheet, _ = sheets.identify_sheet(path, ALLOWED_COUNTS, lookup)
+        exam = db.get(Exam, sheet.exam_id)
+        if not exam.marks_released:
+            raise PermissionError("Your teacher has not released the marks for this exam yet - try again later")
+        existing = db.query(Result).filter_by(sheet_id=sheet.id).first()
+        if existing:                                   # already checked (by the teacher or by an earlier self-check): do not grade again
+            if existing.registration != user.reg_no:
+                raise SheetOfAnotherStudent("This sheet has already been processed for a different student ID")
+            official = existing.source == "teacher"
+            return {"result_id": existing.id, "official": official, "already": True,
+                    "message": "This sheet has already been processed" + (" by your teacher" if official else "") + " - here is the result."}
+        d = sheets.exam_dir(exam.id)
+        res, warped, fills = process_scan_full(path, os.path.join(d, "keys.json"), os.path.join(d, "layout.json"),
+                                               os.path.join(d, "baseline.json"))
+        clean_page = docscan.scan_document(preprocess.load_image_color(path), "gray")
+    except PermissionError as e:
+        raise HTTPException(409, str(e))
+    except SheetOfAnotherStudent as e:
+        raise HTTPException(403, str(e))
+    except Exception as e:
+        raise HTTPException(422, str(e))
     if res["registration"] == "INVALID":
         raise HTTPException(422, "Could not read the registration number - fill all 5 digits clearly and scan again")
     if res["registration"] != user.reg_no:
         raise HTTPException(403, f"This sheet has registration number {res['registration']}, but your ID is {user.reg_no}")
     row = save_result(db, exam, sheet, res, warped, fills, clean_page, source="student")
     return {"result_id": row.id, "official": False, "message": "Marks calculated from your upload (self-check)."}
+
+
+start_scan_workers()                            # also picks up uploads still queued from before a restart
 
 
 @app.get("/api/me/results")
@@ -773,20 +965,22 @@ async def clean_document(file: UploadFile = File(...), mode: str = "gray", fmt: 
     data = await file.read()
     if not 0 < len(data) <= MAX_UPLOAD:
         raise HTTPException(400, "Empty or too large file")
-    with tempfile.TemporaryDirectory() as tmp:
-        path = os.path.join(tmp, "in" + (os.path.splitext(os.path.basename(file.filename or ""))[1].lower() or ".jpg"))
-        with open(path, "wb") as f:
-            f.write(data)
-        try:
-            page = docscan.scan_document(preprocess.load_image_color(path), mode)
-        except Exception as e:
-            raise HTTPException(422, f"Could not read that image: {e}")
-        jpg = os.path.join(tmp, "out.jpg")
-        results.write_jpeg(page, jpg)
-        if fmt == "pdf":
-            return Response(results.jpg_to_pdf(jpg), media_type="application/pdf", headers={"Content-Disposition": 'attachment; filename="scan.pdf"'})
-        with open(jpg, "rb") as f:
-            return Response(f.read(), media_type="image/jpeg")
+    def work():
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "in" + (os.path.splitext(os.path.basename(file.filename or ""))[1].lower() or ".jpg"))
+            with open(path, "wb") as f:
+                f.write(data)
+            try:
+                page = docscan.scan_document(preprocess.load_image_color(path), mode)
+            except Exception as e:
+                raise HTTPException(422, f"Could not read that image: {e}")
+            jpg = os.path.join(tmp, "out.jpg")
+            results.write_jpeg(page, jpg)
+            if fmt == "pdf":
+                return Response(results.jpg_to_pdf(jpg), media_type="application/pdf", headers={"Content-Disposition": 'attachment; filename="scan.pdf"'})
+            with open(jpg, "rb") as f:
+                return Response(f.read(), media_type="image/jpeg")
+    return await workers.run(work)
 
 
 # ── QR code on a sheet: log in, then open the result in your own dashboard ──
@@ -831,7 +1025,8 @@ def public_page(token: str):
     return FileResponse(os.path.join(config.ROOT_DIR, "web", "index.html"))
 
 
-@app.get("/api/health")
+@app.api_route("/api/health", methods=["GET", "HEAD"])
+@app.api_route("/health", methods=["GET", "HEAD"])      # uptime monitors (e.g. UptimeRobot) send HEAD by default
 def health():
     return {"ok": True}
 

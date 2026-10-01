@@ -21,15 +21,60 @@ def status_of(answer: str, correct: str) -> str:
     return "wrong"
 
 
-def review_items(exam, sheet, answers: Dict[str, str]) -> List[dict]:
+def rescore(answers: Dict[str, str], key: List[str]) -> float:
+    """Same rule as the scanner's grader: +SCORE_CORRECT per right answer, SCORE_INCORRECT for a wrong letter, 0 otherwise."""
+    score = 0.0
+    for i, correct in enumerate(key, 1):
+        mine = answers.get(str(i), "BLANK")
+        if mine == correct:
+            score += config.SCORE_CORRECT
+        elif mine not in ("BLANK", "MULTIPLE", "UNCERTAIN"):
+            score += config.SCORE_INCORRECT
+    return score
+
+
+def review_state(r) -> str:
+    """'review' (flagged, not yet handled), 'resolved' (flagged and handled), 'edited' (corrected, nothing flagged) or ''."""
+    if r.needs_review:
+        return "resolved" if r.resolved else "review"
+    return "edited" if r.original_answers else ""
+
+
+def render_inputs_paths(image_path: str) -> tuple:
+    base = image_path[:-4]
+    return base + "_page.jpg", base + "_fills.json"
+
+
+def save_render_inputs(warped: np.ndarray, fills: Dict, image_path: str) -> None:
+    """Keep the straightened page and the raw fill ratios so the marked image can be redrawn after a correction."""
+    page_path, fills_path = render_inputs_paths(image_path)
+    cv2.imwrite(page_path, warped, [cv2.IMWRITE_JPEG_QUALITY, 90])
+    with open(fills_path, "w") as f:
+        json.dump(fills, f)
+
+
+def rerender(image_path: str, layout: dict, answers: Dict[str, str], key: List[str]) -> bool:
+    """Redraw the marked sheet for corrected answers. False when the inputs were not kept (scanned before this feature)."""
+    page_path, fills_path = render_inputs_paths(image_path)
+    if not (os.path.exists(page_path) and os.path.exists(fills_path)):
+        return False
+    page = cv2.imread(page_path, cv2.IMREAD_GRAYSCALE)
+    with open(fills_path) as f:
+        fills = json.load(f)
+    render_student_sheet(page, layout, fills, answers, key, image_path)
+    return True
+
+
+def review_items(exam, sheet, answers: Dict[str, str], original: Dict[str, str] = None) -> List[dict]:
     """Every question as it appeared on this student's paper (their own order and option order)."""
+    original = original or {}
     items = []
     for i, qi in enumerate(sheet.question_order):
         q = exam.questions[qi]
         options = [q.options[j] for j in sheet.option_orders[i]]
         correct, mine = sheet.key[i], answers.get(str(i + 1), "BLANK")
         items.append(dict(number=i + 1, text=q.text, options=options, your=mine, correct=correct,
-                          status=status_of(mine, correct)))
+                          status=status_of(mine, correct), edited=str(i + 1) in original, scanned=original.get(str(i + 1))))
     return items
 
 

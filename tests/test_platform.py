@@ -46,11 +46,41 @@ def wait_ready(client, exam_id):
     raise AssertionError("generation timed out")
 
 
+class Finished:
+    """What a queued student upload ended as, shaped like a response (status_code, json(), text)."""
+    def __init__(self, code, body):
+        self.status_code, self.body, self.text = code, body, json.dumps(body)
+
+    def json(self):
+        return self.body
+
+
+def student_upload(client, path, name, mime):
+    """POST a sheet to the student queue and wait for the background worker to grade it."""
+    r = client.post("/api/me/scan", files={"file": (name, open(path, "rb"), mime)})
+    if r.status_code != 200:
+        return r
+    j = r.json()
+    for _ in range(240):
+        if j["status"] in ("done", "failed"):
+            return Finished(200, j["result"]) if j["status"] == "done" else Finished(j["code"], {"detail": j["error"]})
+        time.sleep(0.25)
+        j = client.get(f"/api/me/scan/{j['job']}").json()
+    raise AssertionError("queued upload never finished")
+
+
 def login_teacher():
     c = TestClient(app)
     if c.post("/api/login", json={"email": "t@t.com", "password": "password123"}).status_code != 200:
         teacher(c)
     return c
+
+
+def test_health_answers_get_and_head_without_login():
+    c = TestClient(app)
+    for path in ("/api/health", "/health"):
+        assert c.get(path).json() == {"ok": True}
+        assert c.head(path).status_code == 200                                                # UptimeRobot sends HEAD
 
 
 def test_auth_rules():
@@ -123,7 +153,8 @@ def test_generate_and_scan(n):
         pages = fitz.open(os.path.join(d, "sheets", f"{i}.pdf"))
         assert all(p.get_text().strip() for p in pages)                                         # no blank pages
     merged = fitz.open(os.path.join(d, "all_sheets.pdf")).page_count
-    assert merged == sum(fitz.open(os.path.join(d, "sheets", f"{i}.pdf")).page_count for i in ids)
+    counts = [fitz.open(os.path.join(d, "sheets", f"{i}.pdf")).page_count for i in ids]
+    assert merged == sum(k + (k > 1 and k % 2) for k in counts)                                # odd multi-page papers padded
     assert c.get(f"/api/exams/{e['id']}/print.pdf").status_code == 200
     z = c.get(f"/api/exams/{e['id']}/download.zip")
     assert z.status_code == 200 and z.content[:2] == b"PK"
@@ -256,7 +287,7 @@ def test_student_scans_own_sheet(n, reg):
     s = new_student(reg)
     digits = tuple(int(x) for x in reg)
     scan = filled_scan(d, ids[0], _tmp, reg=digits)
-    up = s.post("/api/me/scan", files={"file": ("mine.png", open(scan, "rb"), "image/png")})
+    up = student_upload(s, scan, "mine.png", "image/png")
     assert up.status_code == 200, up.text
     body = up.json()
     assert body["official"] is False
@@ -265,15 +296,15 @@ def test_student_scans_own_sheet(n, reg):
 
     # someone else's sheet is refused
     stranger = new_student(reg[::-1] if reg[::-1] != reg else "99999")
-    refused = stranger.post("/api/me/scan", files={"file": ("x.png", open(scan, "rb"), "image/png")})
+    refused = student_upload(stranger, scan, "x.png", "image/png")
     assert refused.status_code == 403 and "different student ID" in refused.text          # the sheet was already processed for someone else
     fresh = filled_scan(d, ids[1], _tmp, reg=digits)                                        # an unprocessed sheet: registration mismatch
-    mismatch = stranger.post("/api/me/scan", files={"file": ("x.png", open(fresh, "rb"), "image/png")})
+    mismatch = student_upload(stranger, fresh, "x.png", "image/png")
     assert mismatch.status_code == 403 and "registration number" in mismatch.text
 
     # the teacher's scan is official and is not overwritten by a later self-check
     assert c.post(f"/api/exams/{e['id']}/scan", files={"file": ("f.png", open(scan, "rb"), "image/png")}).json()["saved"]
-    again = s.post("/api/me/scan", files={"file": ("mine.png", open(scan, "rb"), "image/png")}).json()
+    again = student_upload(s, scan, "mine.png", "image/png").json()
     assert again["official"] is True
     assert s.get(f"/api/me/results/{again['result_id']}").json()["source"] == "teacher"
 
@@ -286,13 +317,13 @@ def test_student_scans_a_phone_photo_and_bad_uploads():
     scan = filled_scan(d, ids[1], _tmp, reg=(5, 5, 5, 5, 5))
     photo = os.path.join(_tmp, "student_photo.jpg")
     cv2.imwrite(photo, photo_of(cv2.imread(scan, 0)), [cv2.IMWRITE_JPEG_QUALITY, 88])
-    up = s.post("/api/me/scan", files={"file": ("p.jpg", open(photo, "rb"), "image/jpeg")})
+    up = student_upload(s, photo, "p.jpg", "image/jpeg")
     assert up.status_code == 200, up.text
     assert s.get(f"/api/me/results/{up.json()['result_id']}").json()["score"] == 10
     blank = os.path.join(_tmp, "blank.png")
     cv2.imwrite(blank, np.full((600, 400), 255, np.uint8))
-    assert s.post("/api/me/scan", files={"file": ("b.png", open(blank, "rb"), "image/png")}).status_code == 422
-    assert c.post("/api/me/scan", files={"file": ("b.png", open(blank, "rb"), "image/png")}).status_code == 403     # teachers cannot
+    assert student_upload(s, blank, "b.png", "image/png").status_code == 422
+    assert student_upload(c, blank, "b.png", "image/png").status_code == 403     # teachers cannot
 
 
 def sheet_png(d, paper_id, reg, work, name):
@@ -345,7 +376,7 @@ def test_batch_pdf_release_toggle_and_qr_card():
 
     student = new_student("44441")                                      # registration 44441 belongs to the first sheet
     assert student.get("/api/me/results").json() == []                  # not released -> hidden
-    assert student.post("/api/me/scan", files={"file": ("m.png", open(pngs[0], "rb"), "image/png")}).status_code == 409
+    assert student_upload(student, pngs[0], "m.png", "image/png").status_code == 409
     public = TestClient(app)                                            # the QR link alone reveals nothing
     assert public.get(f"/api/qr/{tokens[0]}").status_code == 401
     assert public.get(f"/api/public/r/{tokens[0]}").status_code == 404   # the old public card no longer exists
@@ -522,12 +553,12 @@ def test_student_upload_of_an_already_processed_sheet():
     scan = filled_scan(d, ids[0], _tmp, reg=(7, 0, 0, 0, 1))
     assert c.post(f"/api/exams/{e['id']}/scan", files={"file": ("f.png", open(scan, "rb"), "image/png")}).json()["saved"]
 
-    again = mine.post("/api/me/scan", files={"file": ("m.png", open(scan, "rb"), "image/png")})
+    again = student_upload(mine, scan, "m.png", "image/png")
     assert again.status_code == 200
     body = again.json()
     assert body["already"] is True and body["official"] is True and "already been processed" in body["message"]
     assert mine.get(f"/api/me/results/{body['result_id']}").json()["source"] == "teacher"
-    refused = other.post("/api/me/scan", files={"file": ("m.png", open(scan, "rb"), "image/png")})
+    refused = student_upload(other, scan, "m.png", "image/png")
     assert refused.status_code == 403                                      # someone else's sheet is never shown
 
     # a teacher scan of the same sheet is skipped too (single-file endpoint reports it as not saved)
@@ -536,9 +567,9 @@ def test_student_upload_of_an_already_processed_sheet():
 
     # a student's own earlier self-check is also reported as processed, not graded again
     scan2 = filled_scan(d, ids[1], _tmp, reg=(7, 0, 0, 0, 2))
-    first = other.post("/api/me/scan", files={"file": ("m.png", open(scan2, "rb"), "image/png")}).json()
+    first = student_upload(other, scan2, "m.png", "image/png").json()
     assert first.get("already") is None and first["official"] is False
-    second = other.post("/api/me/scan", files={"file": ("m.png", open(scan2, "rb"), "image/png")}).json()
+    second = student_upload(other, scan2, "m.png", "image/png").json()
     assert second["already"] is True and second["official"] is False and second["result_id"] == first["result_id"]
 
 
@@ -570,3 +601,129 @@ def test_teacher_can_delete_an_exam_and_students_lose_it():
     assert c.get(f"/api/qr/{token}").status_code == 404                              # the printed QR no longer resolves
     assert not os.path.exists(d)                                                     # files removed
     assert c.delete(f"/api/exams/{e['id']}?confirm=delete").status_code == 404
+
+
+def custom_scan(exam_dir, paper_id, work, reg, marks):
+    """A filled sheet where `marks` maps question number -> list of letters to fill (missing = correct answer)."""
+    key = json.load(open(os.path.join(exam_dir, "keys.json")))[paper_id]
+    layout = json.load(open(os.path.join(exam_dir, "layout.json")))
+    img = preprocess.load_image(os.path.join(exam_dir, "sheets", f"{paper_id}.pdf"))
+    px = config.CANONICAL_WIDTH / config.A4_WIDTH_MM
+    r = int(layout["bubble_radius_mm"] * px * 0.8)
+
+    def dot(b):
+        cv2.circle(img, (int(b["cx"] * px), int(b["cy"] * px)), r, 40, -1)
+
+    for col, digit in zip(layout["registration"]["columns"], reg):
+        dot(col[digit])
+    for q in layout["questions"]:
+        for letter in marks.get(q["q"], [key[q["q"] - 1]]):
+            dot(q["options"][letter])
+    path = os.path.join(work, f"custom_{paper_id}.png")
+    cv2.imwrite(path, img)
+    return path, key
+
+
+def test_teacher_corrects_a_flagged_sheet_and_resolves_it():
+    import csv as csvlib
+    import io
+    c = login_teacher()
+    e, ids, d = make_exam(c, 10, students=2)
+    student = new_student("90901")
+    path, key = custom_scan(d, ids[0], _tmp, (9, 0, 9, 0, 1), {2: ["A", "B"]})       # Q2 gets two bubbles -> MULTIPLE
+    saved = c.post(f"/api/exams/{e['id']}/scan", files={"file": ("f.png", open(path, "rb"), "image/png")}).json()
+    rid, base = saved["result_id"], f"/api/exams/{e['id']}/results/{saved['result_id']}"
+    first = c.get(base).json()
+    q2 = first["questions"][1]
+    assert first["flagged"] is True and first["review"] == "review" and first["resolved"] is False and q2["status"] == "invalid"
+    before_score = first["score"]
+    before_image = c.get(base + "/sheet.jpg").content
+    assert c.get(f"/api/exams/{e['id']}/results").json()["rows"][0]["review"] == "review"
+
+    right = key[1]                                                           # the teacher decides the student meant the right option
+    fixed = c.patch(base + "/answers", json={"question": 2, "answer": right})
+    assert fixed.status_code == 200
+    body = fixed.json()
+    assert body["questions"][1]["status"] == "correct" and body["questions"][1]["edited"] is True and body["questions"][1]["scanned"] == "MULTIPLE"
+    assert body["score"] == before_score + 1
+    assert body["resolved"] is True and body["review"] == "resolved" and body["needs_review"] is False    # nothing unclear is left
+    assert body["image_redrawn"] is True and c.get(base + "/sheet.jpg").content != before_image
+    row = c.get(f"/api/exams/{e['id']}/results").json()
+    assert row["rows"][0]["review"] == "resolved" and row["needs_review"] == 0
+
+    rows = list(csvlib.DictReader(io.StringIO(c.get(f"/api/exams/{e['id']}/results.csv").text)))
+    mine = next(r for r in rows if r["paper_id"] == ids[0])
+    assert mine["review_status"] == "resolved" and mine["needs_review"] == "no" and mine["Q2_marked"] == f"{right} (right)"
+
+    assert c.put(f"/api/exams/{e['id']}/release", json={"released": True}).status_code == 200
+    seen = student.get("/api/me/results").json()[0]
+    assert seen["score"] == body["score"] and seen["corrected"] is True and seen["needs_review"] is False
+
+    # the toggle works both ways
+    assert c.patch(base + "/review", json={"resolved": False}).json()["review"] == "review"
+    assert student.get(f"/api/me/results/{rid}").json()["needs_review"] is True
+    assert c.patch(base + "/review", json={"resolved": True}).json()["review"] == "resolved"
+
+    # undo puts the scanner's reading back and the sheet needs review again
+    undone = c.patch(base + "/answers", json={"question": 2, "answer": "ORIGINAL"}).json()
+    assert undone["questions"][1]["status"] == "invalid" and undone["score"] == before_score and undone["review"] == "review"
+    assert c.patch(base + "/answers", json={"question": 2, "answer": "ORIGINAL"}).status_code == 409    # nothing left to undo
+
+    # a student's answer can also be marked "not answered"
+    blank = c.patch(base + "/answers", json={"question": 2, "answer": "blank"}).json()
+    assert blank["questions"][1]["status"] == "blank" and blank["resolved"] is True
+
+
+def test_editing_answers_is_validated_and_protected():
+    c = login_teacher()
+    e, ids, d = make_exam(c, 10, students=2)
+    path, key = custom_scan(d, ids[0], _tmp, (9, 0, 9, 0, 2), {})                 # every answer correct, nothing flagged
+    saved = c.post(f"/api/exams/{e['id']}/scan", files={"file": ("f.png", open(path, "rb"), "image/png")}).json()
+    base = f"/api/exams/{e['id']}/results/{saved['result_id']}"
+    detail = c.get(base).json()
+    assert detail["flagged"] is False and detail["review"] == "" and detail["score"] == 10
+
+    assert c.patch(base + "/review", json={"resolved": True}).status_code == 409        # nothing flagged to resolve
+    assert c.patch(base + "/answers", json={"question": 3, "answer": "Z"}).status_code == 422
+    assert c.patch(base + "/answers", json={"question": 0, "answer": "A"}).status_code == 422
+    assert c.patch(base + "/answers", json={"question": 99, "answer": "A"}).status_code == 422
+
+    wrong = "ABCD"[("ABCD".index(key[0]) + 1) % 4]
+    edited = c.patch(base + "/answers", json={"question": 1, "answer": wrong}).json()
+    assert edited["score"] == 9 and edited["review"] == "edited" and edited["questions"][0]["status"] == "wrong"
+    back = c.patch(base + "/answers", json={"question": 1, "answer": key[0]}).json()        # corrected back to what was read
+    assert back["score"] == 10 and back["questions"][0]["edited"] is False and back["review"] == ""
+
+    other = TestClient(app)
+    other.post("/api/register", json={"name": "T5", "email": "t5@t.com", "password": "password123", "role": "teacher"})
+    assert other.patch(base + "/answers", json={"question": 1, "answer": "A"}).status_code == 404
+    assert other.patch(base + "/review", json={"resolved": True}).status_code == 404
+    assert new_student("90902").patch(base + "/answers", json={"question": 1, "answer": "A"}).status_code == 403
+    assert TestClient(app).patch(base + "/answers", json={"question": 1, "answer": "A"}).status_code == 401
+    assert c.get(base).json()["score"] == 10                                              # none of the attempts changed anything
+
+
+def test_student_uploads_wait_in_line_and_are_private():
+    from app import workers
+    s = new_student("80801")
+    blank = os.path.join(_tmp, "queue_blank.png")
+    cv2.imwrite(blank, np.full((600, 400), 255, np.uint8))
+    up = lambda: s.post("/api/me/scan", files={"file": ("b.png", open(blank, "rb"), "image/png")})
+    with workers.slot():                                                  # the server is busy: nothing can be graded yet
+        jobs = [up().json() for _ in range(3)]
+        for _ in range(40):                                               # the worker picks up the first one and waits for the slot
+            if s.get(f"/api/me/scan/{jobs[0]['job']}").json()["status"] == "working":
+                break
+            time.sleep(0.25)
+        now = [s.get(f"/api/me/scan/{j['job']}").json() for j in jobs]
+        assert [j["status"] for j in now] == ["working", "queued", "queued"]
+        assert [j.get("position") for j in now[1:]] == [1, 2]             # 1 = next in line
+        assert up().status_code == 429                                    # at most 3 waiting per student
+        assert new_student("80802").get(f"/api/me/scan/{jobs[0]['job']}").status_code == 404
+    for j in jobs:                                                        # once free, every upload is graded in turn
+        for _ in range(120):
+            j = s.get(f"/api/me/scan/{j['job']}").json()
+            if j["status"] == "failed":
+                break
+            time.sleep(0.25)
+        assert j["status"] == "failed" and j["code"] == 422

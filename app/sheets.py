@@ -15,7 +15,7 @@ from typing import Dict, List, Optional
 import sys
 
 from omr import config
-from . import textconv
+from . import textconv, workers
 from omr.calibration import compute_baseline
 
 sys.path.insert(0, os.path.join(config.ROOT_DIR, "sheet"))
@@ -47,7 +47,7 @@ def exam_dir(exam_id: int) -> str:
 
 def compile_tex(tex: str, out_pdf: str) -> None:
     """Run pdflatex twice (TikZ overlay needs two passes) in a scratch folder; raise CompileError with the log."""
-    with tempfile.TemporaryDirectory() as tmp:
+    with workers.slot(), tempfile.TemporaryDirectory() as tmp:
         with open(os.path.join(tmp, "sheet.tex"), "w") as f:
             f.write(tex)
         for _ in range(2):
@@ -179,7 +179,7 @@ def generate_exam(exam_id: int) -> None:
             rng = random.Random(secrets.randbits(64))
             shown, key, order, opt_orders = shuffled_paper(questions, k, rng, exam.shuffle_questions, exam.shuffle_options)
             qr = qr_link(sheet.qr_token)
-            label = f"ID {sheet.paper_id} / #{sheet.student_no}"
+            label = f"ID {sheet.paper_id}"
             pdf = os.path.join(out, "sheets", f"{sheet.paper_id}.pdf")
             compile_paper(builder, exam.header, shown, sheet.paper_id, qr, label, pdf)
             return sheet.id, key, order, opt_orders, pdf
@@ -192,7 +192,7 @@ def generate_exam(exam_id: int) -> None:
             json.dump(compute_baseline(blank_pdf, layout_path), f)
 
         keys: Dict[str, List[str]] = {}
-        with ThreadPoolExecutor(max_workers=min(8, os.cpu_count() or 2)) as pool:
+        with ThreadPoolExecutor(max_workers=workers.WORKERS) as pool:
             for sid, key, order, opt_orders, pdf in pool.map(work, list(exam.sheets)):
                 sheet = next(s for s in exam.sheets if s.id == sid)
                 sheet.key, sheet.question_order, sheet.option_orders, sheet.pdf_path = key, order, opt_orders, pdf
@@ -214,12 +214,19 @@ def generate_exam(exam_id: int) -> None:
 
 
 def merge_pdfs(paths: List[str], out_pdf: str) -> None:
-    """One PDF with every student's sheet in order (short papers are exactly one page each)."""
+    """One PDF with every student's sheet in order (short papers are exactly one page each).
+
+    A multi-page paper with an odd page count gets a blank page after it, so in double-sided
+    printing the next student's paper starts on a fresh sheet instead of the back of the last page.
+    """
     import fitz
     merged = fitz.open()
     for p in paths:
         with fitz.open(p) as d:
             merged.insert_pdf(d)
+            if d.page_count > 1 and d.page_count % 2:
+                last = d[-1].rect
+                merged.new_page(width=last.width, height=last.height)
     merged.save(out_pdf)
 
 
