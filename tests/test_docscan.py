@@ -115,3 +115,18 @@ def test_bubbles_read_from_a_photo_on_a_busy_background(tmp_path, sheet, corners
     assert res["registration"] == "12345"
     assert all(res["answers"][str(q)] == "ABCD"[q % 4] for q in range(1, 11))
     assert docscan.clean_page(warped).shape == (config.CANONICAL_HEIGHT, config.CANONICAL_WIDTH)
+
+
+def test_page_cropped_on_the_phone(tmp_path, sheet):
+    """The camera page uploads the sheet already cut out (with a small margin); the server only evens out the light."""
+    from omr.pipeline import is_phone_page
+    m = int(sheet.shape[1] * 0.03)
+    page = cv2.copyMakeBorder(sheet, m, m, m, m, cv2.BORDER_CONSTANT, value=255).astype(np.float32)
+    h, w = page.shape
+    page *= np.where(np.mgrid[0:h, 0:w][1] > w // 2, 0.6, 1.0)                      # a shadow over the right half
+    path = tmp_path / "phonepage_123.jpg"
+    cv2.imwrite(str(path), cv2.GaussianBlur(page.clip(0, 255).astype(np.uint8), (3, 3), 0), [cv2.IMWRITE_JPEG_QUALITY, 92])
+    assert is_phone_page(str(path)) and not is_phone_page("scan.jpg")
+    res, _, _ = process_scan_full(str(path), config.NO_KEYS_PATH, config.LAYOUT_PATH, config.BASELINE_PATH, phone_page=True)
+    assert res["registration"] == "12345"
+    assert all(res["answers"][str(q)] == "ABCD"[q % 4] for q in range(1, 11))

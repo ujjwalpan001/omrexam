@@ -79,10 +79,23 @@ def generate_debug_image(warped_img: np.ndarray, result_fills: Dict, layout_path
 
     cv2.imwrite(output_path, debug_img)
 
-def locate_page(img, layout_path: str):
+PHONE_PAGE_PREFIX = "phonepage_"           # uploads the phone already cropped to the page (see the camera in web/index.html)
+
+
+def is_phone_page(name: str) -> bool:
+    return os.path.basename(name or "").startswith(PHONE_PAGE_PREFIX)
+
+
+def locate_page(img, layout_path: str, phone_page: bool = False):
     """Find the answer-sheet frame. A flatbed scan works as is; a phone photo is first cropped, straightened and
-    shadow-corrected (CamScanner style) when the direct attempt fails."""
+    shadow-corrected (CamScanner style) when the direct attempt fails. `phone_page`: the phone already cropped and
+    straightened the page, so only the light is evened out (the normal search remains the fallback)."""
     layout = markers.load_layout(layout_path)
+    if phone_page:
+        try:
+            return markers.detect_and_orient_markers(docscan.remove_shadows(docscan.straighten(img, None)), layout)
+        except markers.MarkerError:
+            pass
     try:
         return markers.detect_and_orient_markers(img, layout)
     except markers.MarkerError as direct_error:
@@ -97,11 +110,12 @@ def locate_page(img, layout_path: str):
             raise direct_error
 
 
-def process_scan_full(filepath: str, keys_path: str, layout_path: str, baseline_path: str = None, located=None):
+def process_scan_full(filepath: str, keys_path: str, layout_path: str, baseline_path: str = None, located=None,
+                      phone_page: bool = False):
     """Grade a scan; also return the straightened page image and the raw fill ratios.
     `located` = (oriented image, frame corners) when the page was already found (saves finding it twice)."""
     if located is None:
-        located = locate_page(preprocess.load_image(filepath), layout_path)
+        located = locate_page(preprocess.load_image(filepath), layout_path, phone_page)
     oriented_img, marker_centers = located
     warped_img = warp.warp_image(oriented_img, marker_centers, layout_path)
     result_fills = bubbles.process_sheet_bubbles(warped_img, layout_path, baseline_path)

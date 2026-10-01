@@ -1,5 +1,4 @@
 """CamScanner-style document cleanup: find the page in a photo, straighten it, remove shadows, whiten the paper."""
-import os
 from typing import Optional
 
 import cv2
@@ -9,9 +8,9 @@ from . import config
 
 MAX_SIDE = 3200          # photos are shrunk to this before processing (speed); the output is A4 at 200 DPI
 MIN_PAGE_AREA = 0.20     # the page must cover at least this fraction of the photo
-# Estimate the paper brightness (for shadow removal) on a 1/4-size copy: ~10x faster, very slightly different pixels.
-# Off by default until compare_shadows.py has confirmed identical answers on real photos (env OMR_FAST_SHADOWS=1).
-FAST_SHADOWS = os.environ.get("OMR_FAST_SHADOWS", "").strip().lower() in ("1", "true", "yes", "on")
+# Shadow removal estimates the paper brightness on a 1/4-size copy: ~10x faster than full size, same answers in our
+# tests (shadows are smooth). compare_shadows.py sets this to False to compare against the full-size method.
+FAST_SHADOWS = True
 
 
 def order_quad(pts: np.ndarray) -> np.ndarray:

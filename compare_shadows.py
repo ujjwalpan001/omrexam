@@ -1,4 +1,4 @@
-"""Check the fast shadow removal (OMR_FAST_SHADOWS) against the normal one on your own photos before switching it on.
+"""Check that the fast shadow removal (now always used) reads your own photos exactly like the old full-size method.
 
     python compare_shadows.py photos/                 every .jpg/.jpeg/.png in the folder
     python compare_shadows.py photos/ --layout output/formats/10/layout.json
@@ -76,7 +76,9 @@ def main() -> None:
     if same + differ:
         print(f"Time: normal {t_normal:.1f}s, fast {t_fast:.1f}s ({t_normal / max(t_fast, 1e-6):.1f}x faster)")
     if differ == 0 and same:
-        print("Safe to switch on: set OMR_FAST_SHADOWS=1 on the server.")
+        print("All good: the fast method reads these photos exactly like the old one.")
+    elif differ:
+        print("Some photos differ - send this output so the bubbles above can be looked at.")
 
 
 if __name__ == "__main__":

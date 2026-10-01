@@ -326,17 +326,25 @@ const PageFinder = (() => {
     return best;
   }
 
-  // the page inside `source` (canvas) straightened to an A4 canvas `outW` wide
-  function straighten(source, quad, outW) {
-    const outH = Math.round(outW * PAGE.h / PAGE.w), H = homography([[0, 0], [outW, 0], [outW, outH], [0, outH]], quad);
+  // the page inside `source` (canvas) straightened to an A4 canvas `outW` wide, plus a `margin` (fraction of the page)
+  // on every side so the black border is never cut off; `smooth` = bilinear sampling (for the copy that gets graded)
+  function straighten(source, quad, outW, margin = 0, smooth = false) {
+    const outH = Math.round(outW * PAGE.h / PAGE.w), mx = Math.round(outW * margin), my = Math.round(outH * margin);
+    const W = outW + 2 * mx, Hh = outH + 2 * my, H = homography([[0, 0], [outW, 0], [outW, outH], [0, outH]], quad);
     const sw = source.width, sh = source.height, src = source.getContext("2d").getImageData(0, 0, sw, sh).data;
-    const out = document.createElement("canvas"); out.width = outW; out.height = outH;
-    const octx = out.getContext("2d"), img = octx.createImageData(outW, outH), o = img.data;
-    for (let y = 0; y < outH; y++) for (let x = 0; x < outW; x++) {
-      const [u, v] = apply(H, [x + 0.5, y + 0.5]), sx = u | 0, sy = v | 0, j = (y * outW + x) * 4;
-      if (sx < 0 || sy < 0 || sx >= sw || sy >= sh) { o[j] = o[j + 1] = o[j + 2] = 255; o[j + 3] = 255; continue; }
-      const i = (sy * sw + sx) * 4;
-      o[j] = src[i]; o[j + 1] = src[i + 1]; o[j + 2] = src[i + 2]; o[j + 3] = 255;
+    const out = document.createElement("canvas"); out.width = W; out.height = Hh;
+    const octx = out.getContext("2d"), img = octx.createImageData(W, Hh), o = img.data;
+    for (let y = 0; y < Hh; y++) for (let x = 0; x < W; x++) {
+      const px = x - mx + 0.5, py = y - my + 0.5, w = H[6] * px + H[7] * py + H[8];
+      const u = (H[0] * px + H[1] * py + H[2]) / w - 0.5, v = (H[3] * px + H[4] * py + H[5]) / w - 0.5, j = (y * W + x) * 4;
+      o[j + 3] = 255;
+      if (u < 0 || v < 0 || u >= sw - 1 || v >= sh - 1) { o[j] = o[j + 1] = o[j + 2] = 255; continue; }
+      const x0 = u | 0, y0 = v | 0, i = (y0 * sw + x0) * 4;
+      if (!smooth) { o[j] = src[i]; o[j + 1] = src[i + 1]; o[j + 2] = src[i + 2]; continue; }
+      const fx = u - x0, fy = v - y0, a = (1 - fx) * (1 - fy), b = fx * (1 - fy), c = (1 - fx) * fy, d = fx * fy, k = i + sw * 4;
+      o[j] = a * src[i] + b * src[i + 4] + c * src[k] + d * src[k + 4];
+      o[j + 1] = a * src[i + 1] + b * src[i + 5] + c * src[k + 1] + d * src[k + 5];
+      o[j + 2] = a * src[i + 2] + b * src[i + 6] + c * src[k + 2] + d * src[k + 6];
     }
     octx.putImageData(img, 0, 0);
     return out;
@@ -354,18 +362,26 @@ const PageFinder = (() => {
   return {find, findIn, straighten, A4: PAGE.h / PAGE.w};
 })();
 
-// photo file -> {file, preview: data URL of the straightened page (or the photo itself), found: bool}
+// A photo -> the answer sheet cut out and straightened on the phone (inside the green outline), ready to upload.
+// {file: the original, page: the cropped page as a File (null when no sheet was found), preview: image URL, found}
+// The cropped page is A4 at 200 DPI (what the server grades at) with a small margin; its name tells the server that
+// the phone already straightened it, so the server skips its own (slow) page search.
+const PAGE_W = 1654;
+const canvasBlob = (c, q) => new Promise(ok => c.toBlob(ok, "image/jpeg", q));
 async function previewOf(file, quad) {
-  if (!file.type.startsWith("image/")) return {file, preview: "", found: false};
+  if (!file.type.startsWith("image/")) return {file, page: null, preview: "", found: false};
   const url = URL.createObjectURL(file);
   try {
     const img = await new Promise((ok, bad) => { const i = new Image(); i.onload = () => ok(i); i.onerror = bad; i.src = url; });
     const c = document.createElement("canvas"); c.width = img.naturalWidth; c.height = img.naturalHeight;
     c.getContext("2d", {willReadFrequently: true}).drawImage(img, 0, 0);
     const q = quad || PageFinder.findIn(c, c.width, c.height);
-    if (!q) return {file, preview: url, found: false};
-    return {file, preview: PageFinder.straighten(c, q, 700).toDataURL("image/jpeg", 0.85), found: true};
-  } catch (e) { return {file, preview: url, found: false}; }
+    if (!q) return {file, page: null, preview: url, found: false};
+    const blob = await canvasBlob(PageFinder.straighten(c, q, PAGE_W, 0.03, true), 0.92);
+    URL.revokeObjectURL(url);
+    const page = new File([blob], "phonepage_" + Date.now() + ".jpg", {type: "image/jpeg"});
+    return {file, page, preview: URL.createObjectURL(blob), found: true};
+  } catch (e) { return {file, page: null, preview: url, found: false}; }
 }
 
 function CameraModal({multi, onShot, onClose}) {
@@ -434,9 +450,10 @@ function CameraModal({multi, onShot, onClose}) {
       onShot(new File([b], "scan_" + Date.now() + ".jpg", {type: "image/jpeg"}), quad);
       if (navigator.vibrate) navigator.vibrate(40);
       if (!multi) { onClose(); return; }
-      const shot = {id: Date.now(), url: URL.createObjectURL(b)};               // flash + the photo flies into "Done"
+      const thumb = quad ? PageFinder.straighten(c, quad, 320, 0.03).toDataURL("image/jpeg", 0.8) : URL.createObjectURL(b);
+      const shot = {id: Date.now(), url: thumb};                                // flash + the page flies into "Done"
       setShots(list => list.concat(shot));
-      setTimeout(() => { setShots(list => list.filter(x => x.id !== shot.id)); URL.revokeObjectURL(shot.url); }, 1300);
+      setTimeout(() => { setShots(list => list.filter(x => x.id !== shot.id)); if (!quad) URL.revokeObjectURL(shot.url); }, 1300);
       setCount(n => n + 1); setStatus("Photo added - show the next page");
     }, "image/jpeg", 0.92);
   }
@@ -777,7 +794,7 @@ function GradePages({examId, onDone}) {
 
   return h("div", {className: "card"}, h("h2", null, "Grade answer sheets"),
     h("p", {className: "hint", style: {marginTop: 0}}, "Upload one PDF containing all scanned sheets (one student per page), or scan pages with the camera. Add as many pages as you like, then check them all at once."),
-    camOpen && h(CameraModal, {multi: true, onShot: f => add([f]), onClose: () => setCamOpen(false)}),
+    camOpen && h(CameraModal, {multi: true, onShot: async (f, quad) => { const p = await previewOf(f, quad); setQueue(q => q.concat({file: p.page || f, thumb: p.preview || null})); }, onClose: () => setCamOpen(false)}),
     h("input", {ref: pick, type: "file", accept: ".pdf,image/*", multiple: true, hidden: true, onChange: e => { add(e.target.files); e.target.value = ""; }}),
     h("div", {className: "row"},
       h("button", {className: "b sec", onClick: () => pick.current.click(), disabled: running}, "Upload PDF / images"),
@@ -1056,7 +1073,7 @@ function StudentScan({onDone}) {
           pending.file.type.startsWith("image/") ? "The black border of the sheet was not found in this photo - it may not be readable. Retake it with the whole sheet in view." :
           "A PDF is checked on the server."),
         h("div", {className: "row", style: {marginTop: 10}},
-          h("button", {className: "b", disabled: pending.loading, onClick: () => upload(pending.file)}, "Check this sheet"),
+          h("button", {className: "b", disabled: pending.loading, onClick: () => upload(pending.page || pending.file)}, "Check this sheet"),
           h("button", {className: "b sec", onClick: () => { setPending(null); setCamOpen(true); }}, "Retake"),
           h("button", {className: "b sec", onClick: () => { setPending(null); input.current.click(); }}, "Choose another file"))) :
       h("div", {className: "row"},

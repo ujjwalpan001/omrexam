@@ -18,7 +18,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from omr import config, docscan, preprocess
-from omr.pipeline import process_scan_full
+from omr.pipeline import is_phone_page, process_scan_full
 
 from . import auth, results, sheets, textconv, transfer, workers
 from .db import Exam, ExamQuestion, Result, ScanJob, Sheet, User, init_db
@@ -284,7 +284,7 @@ def grade_file(db: Session, exam: Exam, path: str, name: str, replace: bool = Fa
     is always replaced by the teacher's scan."""
     d = sheets.scan_dir(exam)
     res, warped, fills = process_scan_full(path, os.path.join(d, "keys.json"), os.path.join(d, "layout.json"),
-                                           os.path.join(d, "baseline.json"))
+                                           os.path.join(d, "baseline.json"), phone_page=is_phone_page(name))
     clean_page = docscan.clean_page(warped)                 # the page the grader already straightened
     res["file"] = name
     sheet = next((s for s in exam.sheets if s.paper_id == res["paper_id"]), None)
@@ -896,7 +896,7 @@ def grade_student_upload(db: Session, user: User, path: str, name: str) -> dict:
         return sheet if exam and exam.status == "ready" and exam.header.get("sheet_questions", len(exam.questions)) == count else None
 
     try:
-        sheet, _, located = sheets.identify_sheet(path, ALLOWED_COUNTS, lookup)
+        sheet, _, located = sheets.identify_sheet(path, ALLOWED_COUNTS, lookup, is_phone_page(name))
         exam = db.get(Exam, sheet.exam_id)
         if not exam.marks_released:
             raise PermissionError("Your teacher has not released the marks for this exam yet - try again later")
