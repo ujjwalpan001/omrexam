@@ -1245,6 +1245,12 @@ def logo_file():
                         headers={"Cache-Control": "public, max-age=604800"})
 
 
+@app.get("/demo")
+def demo_page():
+    # the animated explainer, shown inside the landing page's "Demo video" window
+    return FileResponse(os.path.join(config.ROOT_DIR, "web", "demo.html"))
+
+
 @app.get("/")
 def index():
     return FileResponse(os.path.join(config.ROOT_DIR, "web", "index.html"))

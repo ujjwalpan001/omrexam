@@ -82,6 +82,9 @@ button.b:disabled{opacity:.45;cursor:default}
 .modalbg{position:fixed;inset:0;background:rgba(31,37,48,.45);z-index:60;display:flex;align-items:center;justify-content:center;padding:20px}
 .modal{background:#fff;border-radius:8px;max-width:460px;width:100%;padding:24px;border:1px solid var(--line)}
 .modal h2{margin-bottom:8px}
+.demobox{position:relative;width:min(1100px,100%);height:min(calc(100vh - 110px),760px);margin-top:44px;background:#0E1730;border-radius:12px;box-shadow:0 20px 50px rgba(0,0,0,.3)}
+.demobox iframe{width:100%;height:100%;border:0;display:block;border-radius:12px}
+.demobox .x{position:absolute;top:-44px;right:0;width:36px;height:36px;border-radius:50%;border:0;background:#fff;color:var(--ink);font-size:22px;line-height:1;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.25)}
 button.b.danger{background:var(--bad);border-color:var(--bad);color:#fff}button.b.danger:hover{background:#862e27}
 details.promptbox{border:1px solid var(--line);border-radius:6px;padding:10px 14px;margin-bottom:12px;background:#fcfbf9}
 details.promptbox summary{cursor:pointer;font-weight:600;color:var(--pri)}
@@ -639,7 +642,24 @@ function InstallButton({className}) {
       h("button", {className: "b", onClick: () => setHelp(false)}, "Got it"))));
 }
 
+function DemoVideo({onClose}) {
+  const frame = useRef(null);
+  function close() {
+    try { frame.current.contentWindow.speechSynthesis.cancel(); } catch (e) {}    // the voice-over would keep talking otherwise
+    onClose();
+  }
+  useEffect(() => {
+    const key = e => { if (e.key === "Escape") close(); };
+    document.addEventListener("keydown", key);
+    return () => document.removeEventListener("keydown", key);
+  }, []);
+  return h("div", {className: "modalbg", onClick: close}, h("div", {className: "demobox", role: "dialog", "aria-modal": "true", "aria-label": "Demo video", onClick: e => e.stopPropagation()},
+    h("button", {className: "x", "aria-label": "Close demo", onClick: close}, "×"),
+    h("iframe", {ref: frame, src: "/demo", title: "Deskoros demo", allow: "autoplay; fullscreen"})));
+}
+
 function Landing({go}) {
+  const [demo, setDemo] = useState(false);
   const sample = {institution: "Sample University", subject: "Mathematics", exam: "Mid-term test", exam_date: "2026-02-12", status: "ready",
     score: 8, total: 10, counts: {correct: 8, wrong: 1, blank: 1, invalid: 0}, student: "A. Student", registration: "12345", paper_id: "482913",
     checked_at: "2026-02-13", questions: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => ({number: n, status: n === 1 ? "wrong" : n === 7 ? "blank" : "correct"}))};
@@ -653,7 +673,8 @@ function Landing({go}) {
     h("div", {className: "wrap"}, h("div", {className: "hero"},
       h("div", null, h("h1", {className: "display"}, "Paper exams, marked the same day."),
         h("p", {className: "lead"}, "Deskoros turns a set of multiple-choice questions into printed answer sheets, reads the filled bubbles from a scanner or a phone camera, and gives every student a clear breakdown of their marks."),
-        h("div", {className: "row"}, h("button", {className: "b", onClick: () => go("#signup")}, "Create a teacher account"), h("button", {className: "b sec", onClick: () => go("#login")}, "Student log in"))),
+        h("div", {className: "row"}, h("button", {className: "b", onClick: () => go("#signup")}, "Create a teacher account"), h("button", {className: "b sec", onClick: () => go("#login")}, "Student log in"),
+          h("button", {className: "b sec", onClick: () => setDemo(true)}, "\u25B6 Demo video"))),
       h("div", null, h("div", {className: "specimen-l"}, "What a student sees after scanning the QR code on their sheet"), h(MarkCard, {c: sample, sample: true})))),
     h("div", {className: "wrap"}, h("div", {className: "section"}, h("h2", null, "How it works"),
       h("div", {className: "steps"}, steps.map(([t, p], i) => h("div", {className: "step", key: t}, h("div", {className: "n"}, i + 1), h("h3", null, t), h("p", null, p)))))),
@@ -664,7 +685,8 @@ function Landing({go}) {
       h("div", null, h("h3", null, "For students"), h("ul", null,
         ["See your marks and every question with the correct answer", "View your own answer sheet with each bubble marked", "Check your sheet yourself by scanning it with your phone",
           "Open your result directly from the QR code on the sheet", "Sign in with your student ID"].map(x => h("li", {key: x}, x))))))),
-    h("div", {className: "wrap pfoot"}, "Deskoros - optical mark grading for schools and colleges."));
+    h("div", {className: "wrap pfoot"}, "Deskoros - optical mark grading for schools and colleges."),
+    demo && h(DemoVideo, {onClose: () => setDemo(false)}));
 }
 
 function AuthPage({mode, onUser, go, notice}) {

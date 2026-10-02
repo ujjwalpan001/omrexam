@@ -19,6 +19,7 @@ self.addEventListener("fetch", e => {
   if (req.method !== "GET") return;                                     // uploads and changes: straight to the server
   const same = url.origin === self.location.origin;
   if (same && (url.pathname.startsWith("/api/") || url.pathname === "/health")) return;    // live data: never cached
+  if (same && url.pathname === "/demo") return;                          // the demo video page: not the app shell
 
   if (req.mode === "navigate") {                                          // the page: fresh when online, cached when offline
     e.respondWith(fetch(req).then(r => {
