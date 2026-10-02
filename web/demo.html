@@ -750,6 +750,7 @@ svg .bt{font-family:var(--display);font-weight:800}
       <div class="langs" role="group" aria-label="Voice-over language">
         <button data-lang="en" aria-pressed="true">English</button>
         <button data-lang="hi" aria-pressed="false">हिन्दी</button>
+        <button data-lang="ne" aria-pressed="false">नेपाली</button>
       </div>
       <button class="go" id="goBtn">▶ Start</button>
       <div class="hint">🔊 Turn your sound on</div>
@@ -769,39 +770,51 @@ svg .bt{font-family:var(--display);font-weight:800}
 const SC = [
  {min:11, sfx:[[.5,'rustle'],[3.6,'rustle'],[6.5,'type']],
   en:"Making question papers. Checking hundreds of answer sheets. Students copying from each other. Every exam brings the same headaches for teachers.",
-  hi:"प्रश्न पत्र बनाना। सैकड़ों उत्तर पुस्तिकाएँ जाँचना। बच्चों का एक-दूसरे से नकल करना। हर परीक्षा में टीचर्स के लिए वही परेशानियाँ।"},
+  hi:"प्रश्न पत्र बनाना। सैकड़ों उत्तर पुस्तिकाएँ जाँचना। बच्चों का एक-दूसरे से नकल करना। हर परीक्षा में टीचर्स के लिए वही परेशानियाँ।",
+  ne:"प्रश्नपत्र बनाउनु। सयौँ उत्तरपुस्तिका जाँच्नु। विद्यार्थीहरूले एकअर्काबाट चोरी गर्नु। हरेक परीक्षामा शिक्षकहरूका लागि उही टाउको दुखाइ।"},
  {min:6, sfx:[[.25,'pop'],[.85,'pop']],
   en:"Meet Deskoros, the simple way to run multiple-choice exams in your school.",
-  hi:"मिलिए डेस्कोरोस से। आपके स्कूल में MCQ परीक्षा लेने का आसान तरीका।"},
+  hi:"मिलिए डेस्कोरोस से। आपके स्कूल में MCQ परीक्षा लेने का आसान तरीका।",
+  ne:"भेट्नुहोस् डेस्कोरोसलाई। तपाईंको विद्यालयमा MCQ परीक्षा सञ्चालन गर्ने सजिलो तरिका।"},
  {min:12, sfx:[[.5,'type'],[1.3,'type'],[2.5,'tap'],[3.3,'pop'],[6.3,'whoosh'],[7,'pop']],
   en:"No time to write questions? Deskoros gives you a ready-made prompt. Get questions from AI in seconds, check them and paste them in. The app reads them automatically.",
-  hi:"सवाल लिखने का समय नहीं? डेस्कोरोस आपको एक तैयार प्रॉम्प्ट देता है। AI से कुछ ही सेकंड में सवाल लीजिए, उन्हें जाँचिए और पेस्ट कर दीजिए। ऐप उन्हें अपने आप पढ़ लेता है।"},
+  hi:"सवाल लिखने का समय नहीं? डेस्कोरोस आपको एक तैयार प्रॉम्प्ट देता है। AI से कुछ ही सेकंड में सवाल लीजिए, उन्हें जाँचिए और पेस्ट कर दीजिए। ऐप उन्हें अपने आप पढ़ लेता है।",
+  ne:"प्रश्न लेख्ने समय छैन? डेस्कोरोसले तपाईंलाई तयारी प्रम्प्ट दिन्छ। AI बाट केही सेकेन्डमै प्रश्नहरू लिनुहोस्, जाँच्नुहोस् र पेस्ट गर्नुहोस्। एपले तिनीहरूलाई आफैँ पढ्छ।"},
  {min:11, sfx:[[1.2,'whoosh'],[2.6,'pop'],[2.9,'pop'],[3.8,'thud']],
   en:"Every student gets their own paper, with different questions and different order, plus their own paper ID and QR code. Copying simply doesn't work.",
-  hi:"हर बच्चे को मिलता है अपना अलग पेपर। अलग सवाल, अलग क्रम, साथ में अपनी पेपर ID और QR कोड। अब नकल काम नहीं करती।"},
+  hi:"हर बच्चे को मिलता है अपना अलग पेपर। अलग सवाल, अलग क्रम, साथ में अपनी पेपर ID और QR कोड। अब नकल काम नहीं करती।",
+  ne:"हरेक विद्यार्थीले आफ्नै छुट्टै पेपर पाउँछन्। फरक प्रश्न, फरक क्रम, साथै आफ्नै पेपर ID र QR कोड। अब चोरी गर्न मिल्दैन।"},
  {min:9, sfx:[[.4,'whoosh'],[1.6,'rustle'],[2.6,'rustle'],[3.6,'rustle'],[4.2,'pop']],
   en:"Download all papers as one PDF and print them on any normal printer. It costs about one rupee per student. No expensive OMR machines or special paper.",
-  hi:"सारे पेपर एक PDF में डाउनलोड कीजिए और किसी भी साधारण प्रिंटर पर छापिए। खर्च लगभग एक रुपया प्रति बच्चा। न महँगी OMR मशीन, न खास कागज़।"},
+  hi:"सारे पेपर एक PDF में डाउनलोड कीजिए और किसी भी साधारण प्रिंटर पर छापिए। खर्च लगभग एक रुपया प्रति बच्चा। न महँगी OMR मशीन, न खास कागज़।",
+  ne:"सबै पेपर एउटै PDF मा डाउनलोड गर्नुहोस् र जुनसुकै साधारण प्रिन्टरमा छाप्नुहोस्। खर्च प्रति विद्यार्थी लगभग एक रुपैयाँ। न महँगो OMR मेसिन, न विशेष कागज।"},
  {min:7, sfx:[[.5,'scribS'],[.9,'scribS'],[1.3,'scribS'],[1.7,'scribS'],[2.1,'scribS'],[2.65,'scrib'],[3.25,'scrib'],[3.85,'scrib'],[4.45,'scrib'],[5.05,'scrib']],
   en:"Students simply fill in the bubbles, just like a real board exam.",
-  hi:"बच्चे बस गोले भरते हैं, बिल्कुल बोर्ड परीक्षा की तरह।"},
+  hi:"बच्चे बस गोले भरते हैं, बिल्कुल बोर्ड परीक्षा की तरह।",
+  ne:"विद्यार्थीहरूले बस गोलाहरू भर्छन्, ठ्याक्कै बोर्ड परीक्षामा जस्तै।"},
  {min:12, sfx:[[1,'rustle'],[2.15,'click'],[3.6,'whoosh'],[4,'tap'],[4.8,'tap'],[5.6,'tap'],[6.4,'ding']],
   en:"Done? Just scan the sheets with your phone camera, or scan the whole class on a small printer-scanner and upload one PDF. Deskoros checks every sheet in seconds.",
-  hi:"हो गया? शीट्स को अपने फ़ोन कैमरा से स्कैन कीजिए, या पूरी क्लास को एक छोटे प्रिंटर-स्कैनर से स्कैन करके एक PDF अपलोड कीजिए। डेस्कोरोस हर शीट सेकंडों में जाँच लेता है।"},
+  hi:"हो गया? शीट्स को अपने फ़ोन कैमरा से स्कैन कीजिए, या पूरी क्लास को एक छोटे प्रिंटर-स्कैनर से स्कैन करके एक PDF अपलोड कीजिए। डेस्कोरोस हर शीट सेकंडों में जाँच लेता है।",
+  ne:"सकियो? सिटहरू आफ्नो फोनको क्यामेराले स्क्यान गर्नुहोस्, वा पूरै कक्षालाई सानो प्रिन्टर-स्क्यानरमा स्क्यान गरेर एउटा PDF अपलोड गर्नुहोस्। डेस्कोरोसले हरेक सिट सेकेन्डमै जाँच्छ।"},
  {min:9, sfx:[[.5,'pop'],[.9,'pop'],[1.9,'pop'],[2.5,'pop'],[4.15,'tap'],[4.6,'pop']],
   en:"Correct answers in green, wrong in red. If a mark is unclear, Deskoros doesn't guess. It asks the teacher to confirm.",
-  hi:"सही जवाब हरे रंग में, गलत लाल में। अगर कोई निशान साफ़ नहीं है, तो डेस्कोरोस अंदाज़ा नहीं लगाता। वह टीचर से पुष्टि करवाता है।"},
+  hi:"सही जवाब हरे रंग में, गलत लाल में। अगर कोई निशान साफ़ नहीं है, तो डेस्कोरोस अंदाज़ा नहीं लगाता। वह टीचर से पुष्टि करवाता है।",
+  ne:"सही उत्तर हरियोमा, गलत रातोमा। कुनै चिन्ह स्पष्ट छैन भने डेस्कोरोसले अनुमान गर्दैन। यसले शिक्षकलाई पुष्टि गर्न लगाउँछ।"},
  {min:7, sfx:[[3,'tap'],[3.3,'whoosh'],[4.6,'tap']],
   en:"See the whole class's results, download them to Excel, and release marks when you're ready.",
-  hi:"पूरी क्लास के नतीजे देखिए, Excel में डाउनलोड कीजिए, और जब आप तैयार हों तब नंबर जारी कीजिए।"},
+  hi:"पूरी क्लास के नतीजे देखिए, Excel में डाउनलोड कीजिए, और जब आप तैयार हों तब नंबर जारी कीजिए।",
+  ne:"पूरै कक्षाको नतिजा हेर्नुहोस्, Excel मा डाउनलोड गर्नुहोस्, र तपाईं तयार हुँदा अंक सार्वजनिक गर्नुहोस्।"},
  {min:12, sfx:[[.9,'ding'],[4.6,'pop'],[6.2,'pop']],
   en:"And at home, students and parents can open the result on their phone. They see the score, every question, the right answers and the checked sheet. They can even scan the QR code on the paper to open it.",
-  hi:"और घर पर, बच्चे और माता-पिता फ़ोन पर रिज़ल्ट खोल सकते हैं। उन्हें दिखता है स्कोर, हर सवाल, सही जवाब और जाँची हुई शीट। पेपर पर बना QR कोड स्कैन करके भी इसे खोला जा सकता है।"},
+  hi:"और घर पर, बच्चे और माता-पिता फ़ोन पर रिज़ल्ट खोल सकते हैं। उन्हें दिखता है स्कोर, हर सवाल, सही जवाब और जाँची हुई शीट। पेपर पर बना QR कोड स्कैन करके भी इसे खोला जा सकता है।",
+  ne:"अनि घरमा, विद्यार्थी र अभिभावकले फोनमै नतिजा खोल्न सक्छन्। उनीहरूले अंक, हरेक प्रश्न, सही उत्तर र जाँचिएको सिट देख्छन्। पेपरमा भएको QR कोड स्क्यान गरेर पनि यसलाई खोल्न सकिन्छ।"},
  {min:8, sfx:[[.7,'pop'],[1.2,'pop'],[1.7,'pop'],[2.2,'pop'],[2.7,'ding']],
   en:"Deskoros. Less work for teachers, fair exams for students, clear results for parents. Visit deskoros.tech today.",
   enSay:"Deskoros. Less work for teachers, fair exams for students, clear results for parents. Visit deskoros dot tech today.",
   hi:"डेस्कोरोस। टीचर्स के लिए कम काम, बच्चों के लिए निष्पक्ष परीक्षा, माता-पिता के लिए साफ़ नतीजे। आज ही विज़िट कीजिए deskoros.tech",
-  hiSay:"डेस्कोरोस। टीचर्स के लिए कम काम, बच्चों के लिए निष्पक्ष परीक्षा, माता-पिता के लिए साफ़ नतीजे। आज ही विज़िट कीजिए, डेस्कोरोस डॉट टेक।"}
+  ne:"डेस्कोरोस। शिक्षकका लागि कम काम, विद्यार्थीका लागि निष्पक्ष परीक्षा, अभिभावकका लागि स्पष्ट नतिजा। आजै भ्रमण गर्नुहोस् deskoros.tech",
+  hiSay:"डेस्कोरोस। टीचर्स के लिए कम काम, बच्चों के लिए निष्पक्ष परीक्षा, माता-पिता के लिए साफ़ नतीजे। आज ही विज़िट कीजिए, डेस्कोरोस डॉट टेक।",
+  neSay:"डेस्कोरोस। शिक्षकका लागि कम काम, विद्यार्थीका लागि निष्पक्ष परीक्षा, अभिभावकका लागि स्पष्ट नतिजा। आजै भ्रमण गर्नुहोस्, डेस्कोरोस डट टेक।"}
 ];
 
 const $ = s => document.querySelector(s);
@@ -884,6 +897,8 @@ let voices = [];
 function loadVoices(){ if (hasTTS) voices = speechSynthesis.getVoices(); }
 if (hasTTS){ loadVoices(); speechSynthesis.onvoiceschanged = loadVoices; }
 function pickVoice(l){
+  if (l === 'ne') return voices.find(v => /ne[-_]NP/i.test(v.lang)) || voices.find(v => /nepali/i.test(v.name))
+    || voices.find(v => /hi[-_]IN/i.test(v.lang)) || null;          // no Nepali voice: a Hindi voice reads Devanagari close enough
   if (l === 'hi') return voices.find(v => /hi[-_]IN/i.test(v.lang)) || voices.find(v => /hindi/i.test(v.name)) || null;
   return voices.find(v => /en[-_]IN/i.test(v.lang)) || voices.find(v => /en[-_]GB/i.test(v.lang)) || voices.find(v => /^en/i.test(v.lang)) || null;
 }
@@ -893,9 +908,9 @@ function toast(msg){ const t = $('#toast'); t.textContent = msg; t.classList.add
 
 function narrate(i, tk){
   const d = SC[i], text = d[lang + 'Say'] || d[lang];
-  const est = text.split(/\s+/).length / (lang === 'hi' ? 2.3 : 2.6) + .6;
+  const est = text.split(/\s+/).length / (lang === 'en' ? 2.6 : 2.3) + .6;
   const voice = pickVoice(lang);
-  if (lang === 'hi' && !voice && !hiWarned && hasTTS && !muted){ hiWarned = true; toast('Hindi voice is not available on this device, so Hindi subtitles are shown instead.'); }
+  if (lang !== 'en' && !voice && !hiWarned && hasTTS && !muted){ hiWarned = true; toast(NAME[lang] + ' voice is not available on this device, so ' + NAME[lang] + ' subtitles are shown instead.'); }
   const canSpeak = hasTTS && !muted && (lang === 'en' || voice);
   if (!canSpeak){ timers.push(setTimeout(() => finish(i, tk), est * 1000)); return; }
   const parts = (text.match(/[^.?!।]+[.?!।]*/g) || [text]).map(s => s.trim()).filter(Boolean);
@@ -906,8 +921,8 @@ function narrate(i, tk){
     if (k >= parts.length) return end();
     const u = new SpeechSynthesisUtterance(parts[k++]);
     if (voice) u.voice = voice;
-    u.lang = lang === 'hi' ? 'hi-IN' : (voice ? voice.lang : 'en-IN');
-    u.rate = lang === 'hi' ? .92 : .95; u.pitch = 1.02;
+    u.lang = voice ? voice.lang : (lang === 'hi' ? 'hi-IN' : lang === 'ne' ? 'ne-NP' : 'en-IN');
+    u.rate = lang === 'en' ? .95 : .92; u.pitch = 1.02;
     u.onend = speakNext; u.onerror = () => { if (tk === token) speakNext(); };
     speechSynthesis.speak(u);
   };
@@ -947,14 +962,15 @@ function go(i){
 }
 
 /* ---------- controls ---------- */
+const LABEL = {en: 'English', hi: 'हिन्दी', ne: 'नेपाली'}, NAME = {en: 'English', hi: 'Hindi', ne: 'Nepali'};
 function setLang(l){
   lang = l;
   document.querySelectorAll('.langs button').forEach(b => b.setAttribute('aria-pressed', b.dataset.lang === l));
-  $('#langLbl').textContent = l === 'hi' ? 'हिन्दी' : 'English';
-  document.documentElement.lang = l === 'hi' ? 'hi' : 'en';
+  $('#langLbl').textContent = LABEL[l];
+  document.documentElement.lang = l;
 }
 document.querySelectorAll('.langs button').forEach(b => b.addEventListener('click', () => setLang(b.dataset.lang)));
-$('#langBtn').addEventListener('click', () => { setLang(lang === 'en' ? 'hi' : 'en'); if (started) go(cur); });
+$('#langBtn').addEventListener('click', () => { setLang({en: 'hi', hi: 'ne', ne: 'en'}[lang]); if (started) go(cur); });
 
 $('#goBtn').addEventListener('click', () => {
   started = true; initAudio();
