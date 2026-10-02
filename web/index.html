@@ -2,7 +2,7 @@
 <html lang="en"><head><meta charset="utf-8"><title>Deskoros</title>
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#faf8f5">
-<meta name="description" content="Create OMR answer sheets, scan them with the camera and check marks.">
+<meta name="description" content="Deskoros Offline MCQ: print a different OMR answer sheet for every student, scan them with a phone or scanner, and publish marks the same day.">
 <!-- installable app (Android: manifest + service worker; iOS: apple-* tags) -->
 <link rel="manifest" href="/manifest.webmanifest">
 <link rel="icon" type="image/png" sizes="64x64" href="/icons/favicon-64.png">
@@ -150,7 +150,37 @@ iframe{width:100%;height:760px;border:1px solid var(--line);border-radius:6px;ma
 .cols h3{font-size:19px;margin-bottom:12px}
 .cols ul{margin:0;padding:0;list-style:none}.cols li{padding:9px 0;border-bottom:1px solid var(--line2);color:#3d434e;font-size:15px}
 .cols li:last-child{border-bottom:0}
-.pfoot{margin-top:auto;border-top:1px solid var(--line);padding-top:22px;padding-bottom:22px;color:var(--mut);font-size:13px}
+.pfoot{margin-top:auto;border-top:1px solid var(--line);background:var(--card);padding:40px 0 22px;color:var(--mut);font-size:14px}
+.fcols{display:grid;grid-template-columns:1.4fr 1fr 1fr 1fr;gap:32px}
+.fcols b{display:block;color:var(--ink);font-size:13px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:10px}
+.fcols a{display:block;color:#4a505b;text-decoration:none;padding:3px 0;cursor:pointer}.fcols a:hover{color:var(--pri);text-decoration:underline}
+.fcols .brand{padding:0;font-size:19px}.fcols p{margin:10px 0 0;max-width:18em}
+.fbase{border-top:1px solid var(--line2);margin-top:30px;padding-top:18px;font-size:13px}
+.plinks{display:flex;gap:4px}
+.plinks button{background:none;border:0;padding:8px 10px;border-radius:6px;font-size:14.5px;color:#3a404b;cursor:pointer}
+.plinks button:hover{background:#f1ede6;color:var(--pri)}
+.eyebrow{font-size:12.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--pri);margin-bottom:14px}
+.heronote{margin-top:16px;font-size:14px;color:var(--mut)}.heronote a{cursor:pointer;font-weight:600}
+.ticks{list-style:none;padding:0;margin:22px 0 0;display:flex;flex-wrap:wrap;gap:8px 22px;font-size:14px;color:#3d434e}
+.ticks li:before{content:"\2713";color:var(--ok);font-weight:700;margin-right:7px}
+.pfig{margin-bottom:0}
+.fgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+.fcard{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:20px 22px}
+.fcard h3{font-size:17px;margin-bottom:8px}.fcard p{margin:0;color:#4a505b;font-size:14.5px}
+.faq{max-width:760px}
+.faq details{border-bottom:1px solid var(--line)}.faq details:first-child{border-top:1px solid var(--line)}
+.faq summary{cursor:pointer;padding:15px 0;font-weight:600;font-size:15.5px;list-style:none;display:flex;justify-content:space-between;gap:16px}
+.faq summary::-webkit-details-marker{display:none}
+.faq summary:after{content:"+";color:var(--pri);font-size:20px;line-height:1}.faq details[open] summary:after{content:"\2212"}
+.faq p{margin:0 0 16px;color:#4a505b;max-width:44em}
+.ptext{color:#3d434e;margin:0 0 12px;max-width:34em}
+.plink{font-weight:600;text-decoration:none}.plink:hover{text-decoration:underline}
+.contactcard{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:24px}
+.contactcard .kv td:first-child{color:var(--mut)}
+a.b{display:inline-block;text-decoration:none;background:var(--pri);color:#fff;border:1px solid var(--pri);border-radius:6px;padding:9px 16px;font-size:14px;font-weight:600;line-height:1.55}a.b:hover{background:var(--pri-h)}
+@media(max-width:900px){.plinks{display:none}.fgrid{grid-template-columns:1fr 1fr}.pfig{grid-template-columns:1fr 1fr}.pfig .figure:nth-child(3){border-left:0}
+  .pfig .figure:nth-child(n+3){border-top:1px solid var(--line)}.fcols{grid-template-columns:1fr 1fr}}
+@media(max-width:560px){.fgrid{grid-template-columns:1fr}.pfig .figure{padding:14px 16px}.pfig .figure .n{font-size:22px}}
 .authwrap{display:grid;grid-template-columns:1fr 1fr;min-height:100vh}
 .authside{background:#f3efe8;border-right:1px solid var(--line);padding:48px 56px;display:flex;flex-direction:column}
 .authside .brand{padding:0;font-size:24px;cursor:pointer}
@@ -658,34 +688,87 @@ function DemoVideo({onClose}) {
     h("iframe", {ref: frame, src: "/demo", title: "Deskoros demo", allow: "autoplay; fullscreen"})));
 }
 
+const SITE = "https://www.deskoros.tech", CONTACT = {email: "uzwalpandey1234@gmail.com", phone: "+91 86885 31505", tel: "+918688531505"};
+const ext = (href, text, className) => h("a", {href, target: "_blank", rel: "noopener", className}, text);
+
 function Landing({go}) {
   const [demo, setDemo] = useState(false);
+  const to = id => document.getElementById(id).scrollIntoView({behavior: "smooth"});
   const sample = {institution: "Sample University", subject: "Mathematics", exam: "Mid-term test", exam_date: "2026-02-12", status: "ready",
     score: 8, total: 10, counts: {correct: 8, wrong: 1, blank: 1, invalid: 0}, student: "A. Student", registration: "12345", paper_id: "482913",
     checked_at: "2026-02-13", questions: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map(n => ({number: n, status: n === 1 ? "wrong" : n === 7 ? "blank" : "correct"}))};
-  const steps = [["Write the paper", "Paste your questions as plain text. Mathematics is typeset for you, and each student can get a different selection."],
-    ["Print the sheets", "Every student receives a personal sheet with their own paper ID and a QR code."],
-    ["Scan the answers", "Upload a class PDF, or photograph the sheets one after another. Each page is matched to its student."],
-    ["Release the marks", "Check the results, export them to a spreadsheet, and publish the marks when you are ready."]];
+  const figures = [["~₹1", "print cost per student, on plain A4"], ["10 or 15", "questions per sheet, options A to D"],
+    ["1 per student", "a different paper, paper ID and QR code"], ["Phone or PDF", "scan with a camera or a small scanner"]];
+  const steps = [["Write the paper", "Paste your questions as plain text, or copy our ready-made prompt into an AI assistant and paste back what it writes. Maths is typeset for you."],
+    ["Print the sheets", "Download every student's paper as one PDF and print on any printer. Each sheet carries its own paper ID and QR code."],
+    ["Scan the answers", "Photograph the sheets with a phone, or scan the whole class on a printer-scanner and upload one PDF."],
+    ["Release the marks", "Check the results, download them as a spreadsheet, and publish the marks to students when you are ready."]];
+  const features = [["Different paper for every student", "Questions, and optionally options, are shuffled per student, so copying from a neighbour does not work. A short academic-integrity note is printed on every page."],
+    ["Questions in minutes", "Paste plain text in a simple format. A built-in prompt lets an AI assistant draft the questions; you check them before anything is printed."],
+    ["Scan the way that suits you", "The camera finds the page, straightens it and removes shadows. For a large class, upload a single PDF from a scanner and every page is matched to its student."],
+    ["It never guesses", "A faint or double mark is flagged for the teacher instead of being guessed. Correct it with one click, and undo it if needed."],
+    ["Results you can use", "See the whole class at a glance, open any sheet with every bubble coloured, and export to CSV for Excel. Marks stay hidden until you release them."],
+    ["Results at home", "Students and parents sign in with the student ID, or scan the QR code on the paper, to see the score, every question, the right answer and the checked sheet."]];
+  const faq = [["Do we need an OMR machine or special paper?", "No. Deskoros prints on ordinary A4 paper with any printer, and reads the sheets with a phone camera or any document scanner."],
+    ["How do students fill the sheet?", "Like a board exam: they shade the bubbles for the last 5 digits of their registration number and one option per question. Their paper ID is already printed and filled in."],
+    ["What happens if a mark is unclear?", "The sheet is marked “needs review” and the teacher picks the intended answer. Nothing ambiguous is scored automatically."],
+    ["Who can see a student's result?", "Only the teacher who set the exam and the student who wrote it, and the student only after the teacher releases the marks. The QR code opens the result only after signing in."],
+    ["Can it be used on a phone like an app?", "Yes. Deskoros can be installed on Android and iPhone from the browser, with no app store needed."]];
+  const navs = [["how", "How it works"], ["features", "Features"], ["faq", "FAQ"], ["contact", "Contact"]];
   return h("div", {className: "pub"},
     h("div", {className: "wrap"}, h("div", {className: "pnav"}, h(Brand),
+      h("nav", {className: "plinks"}, navs.map(([id, t]) => h("button", {key: id, onClick: () => to(id)}, t))),
       h("div", {className: "links"}, h(InstallButton), h("button", {className: "b sec", onClick: () => go("#login")}, "Log in"), h("button", {className: "b", onClick: () => go("#signup")}, "Create account")))),
+
     h("div", {className: "wrap"}, h("div", {className: "hero"},
-      h("div", null, h("h1", {className: "display"}, "Paper exams, marked the same day."),
-        h("p", {className: "lead"}, "Deskoros turns a set of multiple-choice questions into printed answer sheets, reads the filled bubbles from a scanner or a phone camera, and gives every student a clear breakdown of their marks."),
-        h("div", {className: "row"}, h("button", {className: "b", onClick: () => go("#signup")}, "Create a teacher account"), h("button", {className: "b sec", onClick: () => go("#login")}, "Student log in"),
-          h("button", {className: "b sec", onClick: () => setDemo(true)}, "\u25B6 Demo video"))),
+      h("div", null, h("div", {className: "eyebrow"}, "Deskoros Offline MCQ"),
+        h("h1", {className: "display"}, "Paper exams, marked the same day."),
+        h("p", {className: "lead"}, "Write your questions once. Deskoros prints a different answer sheet for every student, reads the filled bubbles from a phone camera or a scanned PDF, and shows each student their marks question by question."),
+        h("div", {className: "row"}, h("button", {className: "b", onClick: () => go("#signup")}, "Create a teacher account"),
+          h("button", {className: "b sec", onClick: () => setDemo(true)}, "▶ Watch the 2-minute demo")),
+        h("div", {className: "heronote"}, "Students: ", h("a", {onClick: () => go("#login")}, "sign in with your student ID"), " to see your results."),
+        h("ul", {className: "ticks"}, ["Plain A4 paper", "Any printer", "No OMR machine"].map(x => h("li", {key: x}, x)))),
       h("div", null, h("div", {className: "specimen-l"}, "What a student sees after scanning the QR code on their sheet"), h(MarkCard, {c: sample, sample: true})))),
-    h("div", {className: "wrap"}, h("div", {className: "section"}, h("h2", null, "How it works"),
+
+    h("div", {className: "wrap"}, h("div", {className: "figures pfig"}, figures.map(([n, l]) => h("div", {className: "figure", key: n}, h("div", {className: "n"}, n), h("div", {className: "l"}, l))))),
+
+    h("div", {className: "wrap", id: "how"}, h("div", {className: "section"}, h("h2", null, "How it works"),
       h("div", {className: "steps"}, steps.map(([t, p], i) => h("div", {className: "step", key: t}, h("div", {className: "n"}, i + 1), h("h3", null, t), h("p", null, p)))))),
+
+    h("div", {className: "wrap", id: "features"}, h("div", {className: "section"}, h("h2", null, "Everything an MCQ exam needs"),
+      h("div", {className: "fgrid"}, features.map(([t, p]) => h("div", {className: "fcard", key: t}, h("h3", null, t), h("p", null, p)))))),
+
     h("div", {className: "wrap"}, h("div", {className: "section"}, h("div", {className: "cols"},
       h("div", null, h("h3", null, "For teachers"), h("ul", null,
-        ["Papers of 10 or 15 questions, from text you paste in", "A unique paper ID and QR code on every student's sheet", "Grade a whole class from one PDF, or scan page by page with the camera",
-          "Results as a spreadsheet, with each answer marked right or wrong", "Marks stay hidden until you release them"].map(x => h("li", {key: x}, x)))),
-      h("div", null, h("h3", null, "For students"), h("ul", null,
+        ["Exams of 10 or 15 questions from text you paste in", "Every student's paper in one PDF, or a ZIP with one file each", "Grade a whole class from one PDF, or page by page with the camera",
+          "Unclear marks flagged for you to confirm, with undo", "Results as a CSV spreadsheet, with every answer marked right or wrong", "Marks stay hidden until you release them"].map(x => h("li", {key: x}, x)))),
+      h("div", null, h("h3", null, "For students and parents"), h("ul", null,
         ["See your marks and every question with the correct answer", "View your own answer sheet with each bubble marked", "Check your sheet yourself by scanning it with your phone",
-          "Open your result directly from the QR code on the sheet", "Sign in with your student ID"].map(x => h("li", {key: x}, x))))))),
-    h("div", {className: "wrap pfoot"}, "Deskoros - optical mark grading for schools and colleges."),
+          "Open your result straight from the QR code on the sheet", "Sign in with your student ID, the last 5 digits of your registration number"].map(x => h("li", {key: x}, x))))))),
+
+    h("div", {className: "wrap", id: "faq"}, h("div", {className: "section"}, h("h2", null, "Questions teachers ask"),
+      h("div", {className: "faq"}, faq.map(([q, a]) => h("details", {key: q}, h("summary", null, q), h("p", null, a)))))),
+
+    h("div", {className: "wrap", id: "contact"}, h("div", {className: "section"}, h("div", {className: "cols"},
+      h("div", null, h("h3", null, "About Deskoros"),
+        h("p", {className: "ptext"}, "Deskoros is an education platform that helps institutes, teachers and students create, conduct and learn from examinations, online and offline. Deskoros Offline MCQ is the paper side of it."),
+        h("p", {className: "ptext"}, "Our aim is to take the paperwork out of exams, so teachers spend less time checking answer sheets and more time teaching, and students get clear feedback they can act on."),
+        ext(SITE + "/about", "More about us →", "plink")),
+      h("div", {className: "contactcard"}, h("h3", null, "Talk to us"),
+        h("p", {className: "ptext"}, "Questions, invite codes, school partnerships or support. We usually reply by email."),
+        h("table", {className: "kv"}, h("tbody", null,
+          h("tr", null, h("td", null, "Email"), h("td", null, h("a", {href: "mailto:" + CONTACT.email}, CONTACT.email))),
+          h("tr", null, h("td", null, "Phone"), h("td", null, h("a", {href: "tel:" + CONTACT.tel}, CONTACT.phone))))),
+        h("div", {className: "row", style: {marginTop: 16}}, ext(SITE + "/contact-us", "Contact us", "b"), h("button", {className: "b sec", onClick: () => setDemo(true)}, "▶ Demo video")))))),
+
+    h("footer", {className: "pfoot"}, h("div", {className: "wrap"},
+      h("div", {className: "fcols"},
+        h("div", null, h(Brand), h("p", null, "Empowering education through technology.")),
+        h("div", null, h("b", null, "Product"), h("a", {onClick: () => to("how")}, "How it works"), h("a", {onClick: () => to("features")}, "Features"),
+          h("a", {onClick: () => setDemo(true)}, "Demo video"), h("a", {onClick: () => go("#login")}, "Log in")),
+        h("div", null, h("b", null, "Company"), ext(SITE + "/about", "About us"), ext(SITE + "/contact-us", "Contact"), ext(SITE, "deskoros.tech")),
+        h("div", null, h("b", null, "Legal"), ext(SITE + "/privacy", "Privacy policy"), ext(SITE + "/terms", "Terms of service"))),
+      h("div", {className: "fbase"}, "© " + new Date().getFullYear() + " Deskoros. All rights reserved."))),
     demo && h(DemoVideo, {onClose: () => setDemo(false)}));
 }
 
