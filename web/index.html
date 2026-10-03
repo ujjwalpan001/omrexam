@@ -162,13 +162,16 @@ iframe{width:100%;height:760px;border:1px solid var(--line);border-radius:6px;ma
 .plinks button{background:none;border:0;padding:8px 10px;border-radius:6px;font-size:14.5px;color:#3a404b;cursor:pointer;transition:background .2s,color .2s}
 .plinks button:hover{background:#f1ede6;color:var(--pri)}
 .pub{overflow-x:hidden}
+.pub .wrap{max-width:min(1760px,100%);padding-left:clamp(20px,4.5vw,96px);padding-right:clamp(20px,4.5vw,96px)}
+html.noscroll{scrollbar-width:none}html.noscroll::-webkit-scrollbar{display:none}
 a.b{display:inline-block;text-decoration:none;background:var(--pri);color:#fff;border:1px solid var(--pri);border-radius:6px;padding:9px 16px;font-size:14px;font-weight:600;line-height:1.55}a.b:hover{background:var(--pri-h)}
 .pnav{position:relative;z-index:2}
 /* hero */
-.hero{position:relative;align-items:start;padding:40px 0 56px;grid-template-columns:1fr 1fr;gap:56px}
+.hero{position:relative;align-items:start;padding:40px 0 56px;grid-template-columns:1.1fr 1fr;gap:clamp(40px,5vw,110px);min-height:calc(100vh - 120px)}
 .herotxt{align-self:center;padding-bottom:40px}
-.herotxt .display{font-size:54px;line-height:1.05;letter-spacing:-.02em}
-.herotxt .lead{font-size:19px;color:#2f3540}
+.heropix{max-width:clamp(380px,26vw,520px);margin:-56px 0 22px -2px}
+.herotxt .display{font-size:clamp(46px,3.4vw,66px);line-height:1.04;letter-spacing:-.02em}
+.herotxt .lead{font-size:clamp(17px,1.25vw,22px);color:#2f3540;max-width:36em}
 .hero:before{content:"";position:absolute;z-index:-1;width:520px;height:520px;right:-120px;top:10px;border-radius:50%;background:radial-gradient(circle,var(--pri-weak) 0,rgba(238,241,245,0) 70%);animation:blob 12s ease-in-out infinite}
 @keyframes blob{50%{transform:translate(-40px,30px) scale(1.08)}}
 .eyebrow{display:inline-flex;align-items:center;gap:8px;font-size:12.5px;font-weight:700;letter-spacing:.09em;text-transform:uppercase;color:var(--pri);background:var(--pri-weak);border-radius:99px;padding:6px 12px;margin-bottom:18px}
@@ -184,7 +187,7 @@ a.b{display:inline-block;text-decoration:none;background:var(--pri);color:#fff;b
 button.b,a.b{transition:transform .15s,box-shadow .15s,background .15s}
 button.b:hover,a.b:hover{transform:translateY(-1px);box-shadow:0 6px 16px rgba(34,64,95,.18)}
 /* interactive sample sheet */
-.heroart{position:relative;max-width:470px;margin-left:auto;width:100%}
+.heroart{position:relative;max-width:max(340px,min(580px,calc((100vh - 170px) * .62)));margin-left:auto;width:100%}
 .heroart .paper svg{width:100%;height:auto;display:block;overflow:visible;user-select:none;-webkit-user-select:none}
 .desk{position:relative;isolation:isolate;padding:62px 22px 18px;color:#fff}
 .desk:before{content:"";position:absolute;inset:0;z-index:-1;border-radius:20px;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='600'%3E%3Cfilter id='w'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.003 0.06' numOctaves='4' seed='8'/%3E%3CfeColorMatrix values='0 0 0 0 0.24 0 0 0 0 0.12 0 0 0 0 0.04 0 0 0 1.7 -0.48'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23w)'/%3E%3C/svg%3E"),linear-gradient(100deg,rgba(255,255,255,.08),transparent 40%,rgba(0,0,0,.08)),linear-gradient(90deg,#b98457,#c79465 35%,#b07b4f 65%,#c18d5f);background-size:600px 600px,100% 100%,100% 100%;
@@ -293,19 +296,61 @@ button.b.demo:hover{background:var(--pri-weak)}
 @media(prefers-reduced-motion:reduce){.pub *,.pub *:before,.pub *:after{animation:none!important;transition:none!important}.rv,.in-up{opacity:1;transform:none}
   .display .hl{background-size:100% 100%}}
 .authwrap{display:grid;grid-template-columns:1fr 1fr;min-height:100vh}
-.authside{background:#f3efe8;border-right:1px solid var(--line);padding:48px 56px;display:flex;flex-direction:column}
-.authside .brand{padding:0;font-size:24px;cursor:pointer}
-.authside h1{font-size:32px;margin:auto 0 12px}
-.authside p{color:#4a505b;max-width:26em;margin:0 0 auto}
-.authmain{display:flex;align-items:center;justify-content:center;padding:40px 28px}
-.authbox{width:100%;max-width:380px}
-.seg{display:flex;border:1px solid #cfc9bd;border-radius:6px;overflow:hidden;margin-bottom:18px;background:#fff}
-.seg button{flex:1;border:0;background:#fff;padding:9px;font-size:14px;cursor:pointer;color:#3a404b}
-.seg button+button{border-left:1px solid #cfc9bd}
-.seg button.on{background:var(--pri);color:#fff;font-weight:600}
-.authbox .field{margin-bottom:14px}
-.switch{margin-top:16px;font-size:14px;color:var(--mut)}
-.switch a{cursor:pointer;font-weight:600}
+.authside{height:100vh;position:sticky;top:0;overflow:hidden;background:#f3efe8;border-right:1px solid var(--line);padding:40px 56px 36px;display:flex;flex-direction:column;gap:26px}
+.authside .brand{padding:0;font-size:22px;cursor:pointer;position:relative;z-index:1}
+.authside .tag{font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--mut);position:relative;z-index:1}
+.pixword{display:block;width:100%;height:auto;cursor:crosshair;position:relative;z-index:1;touch-action:none}
+/* auto-scrolling lines */
+.pixfx{position:absolute;inset:0;pointer-events:none;z-index:0}
+.pxc{position:absolute;width:60px;height:60px}
+.pxc i{position:absolute;width:12px;height:12px}
+.pxc i.n{background:#22405f}.pxc i.g{background:#d9a441}
+.pxc i.tw{animation:tw 4s steps(1) infinite}
+@keyframes tw{0%,100%{opacity:1}40%{opacity:0}55%{opacity:1}70%{opacity:.35}}
+.authmain .authbox{position:relative;z-index:1}
+.reel{position:relative;flex:1;min-height:0;overflow:hidden;z-index:1;cursor:ns-resize;
+  -webkit-mask:linear-gradient(transparent,#000 22%,#000 78%,transparent);mask:linear-gradient(transparent,#000 22%,#000 78%,transparent)}
+.reel ul{list-style:none;margin:0;padding:0;will-change:transform}
+.reel li{font-family:var(--serif);font-size:clamp(24px,2.4vw,34px);line-height:1.18;font-weight:600;letter-spacing:-.01em;color:#cdc6b8;padding:7px 0 7px 26px;position:relative;cursor:pointer;transition:color .35s}
+.reel li.gap{height:26px;padding:0;cursor:default}
+.reel li.on{color:var(--ink)}
+.reel li.on:before{content:"";position:absolute;left:0;top:50%;width:12px;height:12px;margin-top:-6px;background:#d9a441;box-shadow:6px -6px 0 -1px var(--pri)}
+.reel li em{font-style:normal;color:inherit;background:linear-gradient(transparent 70%,#f3e3c3 70%)}
+.reel li:not(.on) em{background:none}
+.authside .foot{display:flex;justify-content:space-between;align-items:center;font-size:12.5px;color:var(--mut);position:relative;z-index:1}
+.authside .foot b{font-family:ui-monospace,Menlo,Consolas,monospace;letter-spacing:.06em;color:var(--pri)}
+/* stepping pixel blocks */
+/* form side */
+.authmain{position:relative;display:flex;align-items:center;justify-content:center;padding:40px 28px;min-height:100vh;
+  background:radial-gradient(circle,rgba(34,64,95,.09) 1.2px,transparent 1.4px) 0 0/22px 22px,var(--bg)}
+.authbox{position:relative;overflow:hidden;width:100%;max-width:500px;background:var(--card);border:1.5px solid #d6cfc2;border-radius:18px;padding:48px 44px 36px;box-shadow:0 30px 60px rgba(31,37,48,.14),0 3px 8px rgba(31,37,48,.06);animation:inup .6s ease both}
+.authbox:before{content:"";position:absolute;left:0;right:0;top:0;height:6px;background:linear-gradient(90deg,var(--pri) 0 70%,#d9a441 70% 85%,var(--pri) 85%)}
+.authbox .field{margin-bottom:18px;animation:inup .5s ease both}
+.authbox .field:nth-of-type(2){animation-delay:.05s}.authbox .field:nth-of-type(3){animation-delay:.1s}.authbox .field:nth-of-type(4){animation-delay:.15s}.authbox .field:nth-of-type(5){animation-delay:.2s}
+.authbox input{transition:border-color .2s,box-shadow .2s;font-size:16px;padding:13px 14px;border-radius:9px;border:1.5px solid #bdb5a6}
+.authbox label,.authbox .lbl{font-size:14.5px;font-weight:700;color:var(--ink)}
+.authbox .hint{font-size:13.5px}
+.authbox input:focus{outline:none;border-color:var(--pri);box-shadow:0 0 0 4px rgba(34,64,95,.12)}
+.authbox .ahead{display:flex;align-items:center;gap:14px;margin-bottom:26px}
+.authbox .ahead .px{display:grid;grid-template-columns:repeat(2,11px);gap:2px}
+.authbox .ahead .px i{width:11px;height:11px;background:var(--pri)}.authbox .ahead .px i:nth-child(2){background:#d9a441;animation:blink 1.6s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+.authbox .ahead h1{font-size:36px;font-weight:700;letter-spacing:-.02em;margin:0}
+.authbox .back{font-size:14px;color:var(--mut);cursor:pointer;margin-left:auto;text-decoration:none}.authbox .back:hover{color:var(--pri)}
+.seg{position:relative;display:flex;border:1px solid #cfc9bd;border-radius:9px;margin-bottom:18px;background:#f6f3ee;padding:3px}
+.seg:before{content:"";position:absolute;top:3px;bottom:3px;left:3px;width:calc(50% - 3px);border-radius:7px;background:var(--pri);transition:transform .3s cubic-bezier(.3,1.3,.5,1)}
+.seg.r2:before{transform:translateX(100%)}
+.seg button{position:relative;flex:1;border:0;background:none;padding:11px;font-size:15px;cursor:pointer;color:#3a404b;transition:color .3s;z-index:1}
+.seg button.on{color:#fff;font-weight:700}
+.authbox button.go{position:relative;overflow:hidden;width:100%;margin-top:8px;padding:16px 18px;font-size:17px;font-weight:800;letter-spacing:.01em;border-radius:10px;box-shadow:0 10px 22px rgba(34,64,95,.28)}
+.authbox button.go:after{content:"";position:absolute;top:0;bottom:0;width:60px;left:-80px;background:linear-gradient(100deg,transparent,rgba(255,255,255,.35),transparent);animation:shine 3.2s ease-in-out infinite}
+@keyframes shine{0%,60%{left:-80px}100%{left:110%}}
+.authbox button.go span{display:inline-block;transition:transform .2s}.authbox button.go:hover span{transform:translateX(4px)}
+.switch{margin-top:20px;font-size:15px;color:var(--mut);text-align:center}
+.switch a{cursor:pointer;font-weight:800}
+.mobword{display:none;margin:-6px 0 18px}
+@media(max-width:900px){.mobword{display:block}.authbox{padding:26px 20px}.authbox .ahead h1{font-size:28px}}
+@media(prefers-reduced-motion:reduce){.pxc i,.authbox,.authbox .field,.authbox button.go:after,.authbox .ahead .px i{animation:none!important}}
 
 /* mark card (QR page + intro specimen) */
 .mcard{background:#fff;border:1px solid var(--line);border-radius:8px;overflow:hidden}
@@ -317,7 +362,7 @@ button.b.demo:hover{background:var(--pri-weak)}
 .qstrip div{width:30px;height:30px;border-radius:5px;display:grid;place-items:center;color:#fff;font-weight:600;font-size:13px}
 .kv{width:100%;margin-top:16px}.kv td{padding:8px 0}.kv td:last-child{text-align:right;font-weight:600}
 
-@media(max-width:900px){.two{grid-template-columns:1fr}.hero{grid-template-columns:1fr;gap:36px;padding:44px 0 40px}.display{font-size:36px}.steps{grid-template-columns:1fr 1fr}.cols{grid-template-columns:1fr;gap:32px}.authwrap{grid-template-columns:1fr}.authside{display:none}}
+@media(max-width:900px){.two{grid-template-columns:1fr}.hero{min-height:0;grid-template-columns:1fr;gap:36px;padding:44px 0 40px}.display{font-size:36px}.steps{grid-template-columns:1fr 1fr}.cols{grid-template-columns:1fr;gap:32px}.authwrap{grid-template-columns:1fr}.authside{display:none}}
 @media(max-width:800px){
   body{font-size:15px}
   input[type=text],input[type=number],input[type=email],input[type=password],input[type=date],textarea,select{font-size:16px;padding:11px 12px}
@@ -952,8 +997,13 @@ function HeroSheet() {
       h("button", {className: "b sec", onClick: clear}, "Clear"), h("span", {className: "hint"}, done ? (reg.every(d => d !== null) ? "Regn No " + reg.join("") + " \u00B7 " : "") + "green right, red wrong, blue missed" : answered + " of 10 answered"))));
 }
 
+const useNoScrollbar = () => useEffect(() => {          // public pages: hide the scroll bar (scrolling still works)
+  document.documentElement.classList.add("noscroll"); return () => document.documentElement.classList.remove("noscroll");
+}, []);
+
 function Landing({go}) {
   const [demo, setDemo] = useState(false);
+  useNoScrollbar();
   const to = id => document.getElementById(id).scrollIntoView({behavior: "smooth"});
   useEffect(() => {                        // fade sections in as they scroll into view
     const els = document.querySelectorAll(".rv");
@@ -982,7 +1032,7 @@ function Landing({go}) {
       h("div", {className: "links"}, h(InstallButton), h("button", {className: "b sec", onClick: () => go("#login")}, "Log in"), h("button", {className: "b", onClick: () => go("#signup")}, "Create account")))),
 
     h("div", {className: "wrap"}, h("div", {className: "hero"},
-      h("div", {className: "herotxt"}, h("div", {className: "eyebrow in-up"}, h("i"), "Deskoros Offline MCQ"),
+      h("div", {className: "herotxt"}, h(PixelWord, {className: "heropix"}), h("div", {className: "eyebrow in-up"}, h("i"), "Deskoros Offline MCQ"),
         h("h1", {className: "display in-up", style: {"--i": 1}}, "Paper exams, ", h("span", {className: "hl"}, "marked the same day.")),
         h("p", {className: "lead in-up", style: {"--i": 2}}, "Write questions in minutes with our ready-made AI prompt, print a different question set for every student, and check the answer sheets with a phone camera or a simple printer-scanner."),
         h("div", {className: "row in-up", style: {"--i": 3}}, h("button", {className: "b", onClick: () => go("#signup")}, "Create a teacher account"),
@@ -1020,7 +1070,109 @@ function Landing({go}) {
     demo && h(DemoVideo, {onClose: () => setDemo(false)}));
 }
 
+/* ───────────── sign-in page extras: pixel wordmark + scrolling lines ───────────── */
+const PIXFONT = {D: ["11110", "10001", "10001", "10001", "10001", "10001", "11110"], E: ["11111", "10000", "10000", "11110", "10000", "10000", "11111"],
+  S: ["01111", "10000", "10000", "01110", "00001", "00001", "11110"], K: ["10001", "10010", "10100", "11000", "10100", "10010", "10001"],
+  O: ["01110", "10001", "10001", "10001", "10001", "10001", "01110"], R: ["11110", "10001", "10001", "11110", "10100", "10010", "10001"]};
+const calm = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/* "DESKOROS" drawn from little squares that fly in, dodge the cursor and spring back; a click scatters them */
+function PixelWord({className}) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const cv = ref.current, ctx = cv.getContext("2d"), word = "DESKOROS", C = 12, cols = word.length * 6 - 1, W = cols * C, H = 7 * C + 24;
+    const dpr = window.devicePixelRatio || 1;
+    cv.width = W * dpr; cv.height = H * dpr; ctx.scale(dpr, dpr);
+    const px = [];
+    [...word].forEach((ch, li) => PIXFONT[ch].forEach((row, y) => [...row].forEach((b, x) => {
+      if (b !== "1") return;
+      const hx = (li * 6 + x) * C, hy = y * C + 12;
+      px.push({hx, hy, x: Math.random() * W, y: Math.random() * H * 3 - H, vx: 0, vy: 0, d: Math.random() * 40});
+    })));
+    const mouse = {x: -999, y: -999};
+    const pos = e => { const r = cv.getBoundingClientRect(), p = e.touches ? e.touches[0] : e; mouse.x = (p.clientX - r.left) * W / r.width; mouse.y = (p.clientY - r.top) * H / r.height; };
+    const out = () => { mouse.x = mouse.y = -999; };
+    const burst = () => px.forEach(p => { p.vx += (Math.random() - .5) * 40; p.vy += (Math.random() - .5) * 40; });
+    cv.addEventListener("mousemove", pos); cv.addEventListener("touchmove", pos, {passive: true}); cv.addEventListener("mouseleave", out); cv.addEventListener("touchend", out); cv.addEventListener("click", burst);
+    let raf, frame = 0;
+    const draw = () => {
+      frame++;
+      ctx.clearRect(0, 0, W, H);
+      for (const p of px) {
+        if (frame > p.d) {
+          const dx = p.x - mouse.x, dy = p.y - mouse.y, dist = Math.hypot(dx, dy);
+          if (dist < 56) { const f = (56 - dist) / 56 * 2.4; p.vx += dx / (dist || 1) * f; p.vy += dy / (dist || 1) * f; }
+          p.vx = (p.vx + (p.hx - p.x) * .07) * .8; p.vy = (p.vy + (p.hy - p.y) * .07) * .8;
+          p.x += p.vx; p.y += p.vy;
+        }
+        const off = Math.min(1, Math.hypot(p.x - p.hx, p.y - p.hy) / 30);
+        ctx.fillStyle = off > .25 ? "#d9a441" : "#22405f";
+        ctx.fillRect(p.x, p.y, C - 2, C - 2);
+      }
+      raf = requestAnimationFrame(draw);
+    };
+    if (calm()) { px.forEach(p => { p.x = p.hx; p.y = p.hy; }); frame = 1e9; draw(); cancelAnimationFrame(raf); } else draw();
+    return () => { cancelAnimationFrame(raf); cv.removeEventListener("mousemove", pos); cv.removeEventListener("touchmove", pos); cv.removeEventListener("mouseleave", out); cv.removeEventListener("touchend", out); cv.removeEventListener("click", burst); };
+  }, []);
+  return h("canvas", {ref, className: "pixword " + (className || ""), role: "img", "aria-label": "Deskoros"});
+}
+
+const REEL = [["Every paper printed."], ["Every bubble filled."], ["Every sheet scanned."], ["Every mark released."], null,
+  ["That's ", h("em", {key: 1}, "Deskoros"), "."], null,
+  ["One AI prompt writes the questions."], ["A different paper for every student."], null,
+  ["Scan with a phone camera,"], ["or one PDF from a small scanner."], null,
+  ["Unclear mark? We ask. ", h("em", {key: 1}, "Never guess.")], null,
+  ["Results at home, the same day."], null, ["Less checking. ", h("em", {key: 1}, "More teaching.")], null];
+
+/* Groq-style reel: lines drift upwards on a loop; the one in the middle lights up. Hover pauses, the wheel scrolls, a click centres a line */
+function Reel() {
+  const box = useRef(null), list = useRef(null);
+  useEffect(() => {
+    const el = box.current, ul = list.current;
+    let y = 0, target = null, hover = false, raf, last = performance.now();
+    const half = () => ul.scrollHeight / 2;
+    const items = [...ul.children];
+    const tick = now => {
+      const dt = Math.min(64, now - last); last = now;
+      if (target !== null) { y += (target - y) * .12; if (Math.abs(target - y) < .5) target = null; }
+      else if (!hover && !calm()) y += dt * .028;
+      const H = half(); if (y >= H) y -= H; if (y < 0) y += H; if (target !== null && target >= H) target -= H;
+      ul.style.transform = `translateY(${-y}px)`;
+      const mid = el.clientHeight / 2 + y;
+      let best = null, bd = 1e9;
+      items.forEach(li => { if (li.classList.contains("gap")) return; const c = li.offsetTop + li.offsetHeight / 2, d = Math.abs(c - mid); if (d < bd) { bd = d; best = li; } });
+      items.forEach(li => li.classList.toggle("on", li === best));
+      raf = requestAnimationFrame(tick);
+    };
+    const wheel = e => { e.preventDefault(); target = null; y += e.deltaY * .6; };
+    const click = e => { const li = e.target.closest("li"); if (li && !li.classList.contains("gap")) target = li.offsetTop + li.offsetHeight / 2 - el.clientHeight / 2; };
+    const enter = () => { hover = true; }, leave = () => { hover = false; };
+    el.addEventListener("wheel", wheel, {passive: false}); el.addEventListener("click", click); el.addEventListener("mouseenter", enter); el.addEventListener("mouseleave", leave);
+    raf = requestAnimationFrame(tick);
+    return () => { cancelAnimationFrame(raf); el.removeEventListener("wheel", wheel); el.removeEventListener("click", click); el.removeEventListener("mouseenter", enter); el.removeEventListener("mouseleave", leave); };
+  }, []);
+  const lines = REEL.concat(REEL);                                   // twice, so the loop is seamless
+  return h("div", {className: "reel", ref: box, "aria-hidden": true},
+    h("ul", {ref: list}, lines.map((l, i) => l ? h("li", {key: i}, l) : h("li", {key: i, className: "gap"}))));
+}
+
+/* loose, irregular pixel clusters (no boxes) that stay put while single pixels flicker; [x, y, colour] in 12px cells */
+const CLUSTERS = [
+  [[2, 0, 2], [3, 0, 2], [0, 1, 1], [1, 1, 1], [2, 1, 2], [1, 2, 1], [4, 2, 2], [1, 3, 1]],
+  [[0, 0, 1], [0, 1, 1], [1, 1, 2], [2, 2, 1], [2, 3, 1], [3, 3, 2]],
+  [[1, 0, 2], [0, 1, 1], [1, 1, 1], [2, 1, 1], [1, 2, 2], [3, 2, 1], [3, 4, 2]],
+  [[0, 0, 2], [2, 0, 1], [1, 1, 1], [2, 1, 1], [0, 3, 2], [1, 3, 1]]];
+function Pixels({spots}) {
+  return h("div", {className: "pixfx", "aria-hidden": true}, spots.map(([c, style], k) =>
+    h("div", {key: k, className: "pxc", style}, CLUSTERS[c].map(([x, y, col], i) => {
+      const seed = (k * 7 + i * 13) % 17;
+      return h("i", {key: i, className: (col === 2 ? "g" : "n") + (seed % 3 === 0 ? " tw" : ""),
+        style: {left: x * 12, top: y * 12, animationDuration: (3 + seed % 5) + "s", animationDelay: (seed * .23) + "s"}});
+    }))));
+}
+
 function AuthPage({mode, onUser, go, notice}) {
+  useNoScrollbar();
   const register = mode === "register";
   const [f, setF] = useState({name: "", email: "", password: "", role: "teacher", invite: "", reg_no: ""});
   const [err, setErr] = useState("");
@@ -1034,14 +1186,18 @@ function AuthPage({mode, onUser, go, notice}) {
   }
   const teacher = f.role === "teacher";
   return h("div", {className: "authwrap"},
-    h("div", {className: "authside"}, h(Brand, {onClick: () => go("")}),
-      h("h1", null, register ? "Create your account" : "Welcome back"),
-      h("p", null, register ? "Teachers set up exams and mark them. Students use their student ID to see their results." : "Sign in to set up exams, check answer sheets, or see your results.")),
+    h("div", {className: "authside"},
+      h(Pixels, {spots: [[0, {right: "7%", top: "4.5%"}], [1, {right: "4%", top: "47%"}], [2, {left: "1.5%", bottom: "17%"}], [3, {right: "3%", bottom: "15%"}]]}),
+      h(Brand, {onClick: () => go("")}),
+      h("div", null, h("div", {className: "tag"}, register ? "Create your account" : "Welcome back"), h(PixelWord), h("div", {className: "hint", style: {marginTop: 4}}, "Move your cursor over the letters. Click to scatter them.")),
+      h(Reel),
+      h("div", {className: "foot"}, h("span", null, "Paper exams, marked the same day."), h("b", null, "OFFLINE MCQ"))),
     h("div", {className: "authmain"}, h("form", {className: "authbox", onSubmit: submit},
-      h("div", {className: "pagehead", style: {display: "block", marginBottom: 18}}, h("h1", {style: {fontSize: 26}}, register ? "Create account" : "Log in"),
-        h("div", {className: "hint", style: {marginTop: 0}}, h("a", {onClick: () => go(""), style: {cursor: "pointer"}}, "< Back to start"))),
+      h("div", {className: "mobword"}, h(PixelWord)),
+      h("div", {className: "ahead"}, h("span", {className: "px", "aria-hidden": true}, h("i"), h("i"), h("i"), h("i", {style: {background: "transparent"}})),
+        h("h1", null, register ? "Create account" : "Log in"), h("a", {className: "back", onClick: () => go("")}, "\u2190 Back to start")),
       notice && h("div", {className: "notice"}, h("span", null, notice)),
-      register && h("div", {className: "seg"}, ["teacher", "student"].map(r => h("button", {type: "button", key: r, className: f.role === r ? "on" : "", onClick: () => set("role")(r)}, r === "teacher" ? "I am a teacher" : "I am a student"))),
+      register && h("div", {className: "seg" + (teacher ? "" : " r2")}, ["teacher", "student"].map(r => h("button", {type: "button", key: r, className: f.role === r ? "on" : "", onClick: () => set("role")(r)}, r === "teacher" ? "I am a teacher" : "I am a student"))),
       register && h("div", {className: "field"}, h(Text, {label: "Full name", value: f.name, onChange: set("name")})),
       !register && h("div", {className: "field"}, h(Text, {label: "Email or student ID", value: f.email, onChange: set("email")})),
       register && teacher && h("div", {className: "field"}, h(Text, {label: "Email", type: "email", value: f.email, onChange: set("email")})),
@@ -1051,7 +1207,7 @@ function AuthPage({mode, onUser, go, notice}) {
         register && teacher && h("div", {className: "hint"}, "At least 8 characters.")),
       register && teacher && h("div", {className: "field"}, h(Text, {label: "Invite code (if your school gave you one)", value: f.invite, onChange: set("invite")})),
       err && h("div", {className: "err"}, err),
-      h("button", {className: "b", type: "submit", style: {width: "100%", marginTop: 4}}, register ? "Create account" : "Log in"),
+      h("button", {className: "b go", type: "submit"}, register ? "Create account " : "Log in ", h("span", null, "\u2192")),
       h("div", {className: "switch"}, register ? "Already have an account? " : "New here? ", h("a", {onClick: () => go(register ? "#login" : "#signup")}, register ? "Log in" : "Create an account")))));
 }
 
