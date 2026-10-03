@@ -128,6 +128,7 @@ details.promptbox summary{cursor:pointer;font-weight:600;color:var(--pri)}
 .ans{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;margin-top:10px}
 .ans div{border:1px solid var(--line);border-radius:6px;padding:6px 10px}
 iframe{width:100%;height:760px;border:1px solid var(--line);border-radius:6px;margin-top:12px}
+.pdfpages{margin-top:12px;display:flex;flex-direction:column;gap:12px;align-items:center}.pdfpage{width:100%;max-width:900px;height:auto;border:1px solid var(--line);border-radius:6px;background:#fff}
 
 /* public pages: intro + sign in */
 .pub{min-height:100vh;display:flex;flex-direction:column}
@@ -797,6 +798,86 @@ function Brand({onClick}) {
     h("img", {src: "/logo.svg", alt: "", className: "brandlogo"}), "Deskoros");
 }
 
+/* ───────────── downloads and PDF previews ─────────────
+   A plain <a href> to a file does not save it from an installed iPhone app: the file opens in a viewer with no way
+   back. So we fetch the file ourselves and hand it over - the share sheet ("Save to Files") on iPhone / iPad, a
+   normal download everywhere else. */
+const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+function saveBlob(blob, name) {
+  const url = URL.createObjectURL(blob), a = document.createElement("a");
+  a.href = url; a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+async function shareFile(file) {            // true when the share sheet was used (or the user closed it)
+  if (!(navigator.canShare && navigator.canShare({files: [file]}))) return false;
+  try { await navigator.share({files: [file]}); } catch (e) { if (e.name !== "AbortError") throw e; }
+  return true;
+}
+function Download({href, name, className, link, children}) {
+  const [busy, setBusy] = useState(false), [ready, setReady] = useState(null), [err, setErr] = useState("");
+  async function give(file) {
+    if (isIOS()) {
+      try { if (await shareFile(file)) { setReady(null); return; } }
+      catch (e) { if (e.name === "NotAllowedError") { setReady(file); return; } }   // fetch took too long: needs one more tap
+    }
+    saveBlob(file, file.name); setReady(null);
+  }
+  async function click(e) {
+    e.preventDefault(); if (busy) return;
+    if (ready) return give(ready);
+    setBusy(true); setErr("");
+    try {
+      const r = await api(href);
+      const blob = await r.blob();
+      await give(new File([blob], name, {type: blob.type || "application/octet-stream"}));
+    } catch (x) { setErr(x.message || "Download failed"); }
+    setBusy(false);
+  }
+  const label = busy ? "Preparing..." : ready ? "Tap to save " + name : children;
+  return h(React.Fragment, null,
+    link ? h("a", {href, onClick: click}, label) : h("button", {className, onClick: click, disabled: busy}, label),
+    err && h("span", {className: "hint", style: {color: "var(--bad)", marginLeft: 6}}, err));
+}
+
+// iPhone shows only the first page of a PDF inside an iframe, so the preview draws every page itself with pdf.js.
+const PDFJS = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/";
+let pdfjsLoad = null;
+const loadPdfjs = () => pdfjsLoad || (pdfjsLoad = new Promise((ok, fail) => {
+  const s = document.createElement("script"); s.src = PDFJS + "pdf.min.js";
+  s.onload = () => { window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS + "pdf.worker.min.js"; ok(window.pdfjsLib); };
+  s.onerror = () => { pdfjsLoad = null; fail(new Error("pdf.js did not load")); };
+  document.head.appendChild(s);
+}));
+function PdfPages({src}) {
+  const box = useRef(null);
+  const [state, setState] = useState("loading");
+  useEffect(() => {
+    let dead = false;
+    (async () => {
+      try {
+        const lib = await loadPdfjs();
+        const doc = await lib.getDocument(src).promise;
+        const el = box.current; if (dead || !el) return;
+        el.innerHTML = "";
+        const width = Math.min(el.clientWidth || 800, 900), dpr = Math.min(window.devicePixelRatio || 1, 2);
+        for (let i = 1; i <= doc.numPages && !dead; i++) {
+          const page = await doc.getPage(i);
+          const vp = page.getViewport({scale: width / page.getViewport({scale: 1}).width * dpr});
+          const c = document.createElement("canvas");
+          c.width = vp.width; c.height = vp.height; c.className = "pdfpage";
+          el.appendChild(c);
+          await page.render({canvasContext: c.getContext("2d"), viewport: vp}).promise;
+        }
+        if (!dead) setState("done");
+      } catch (e) { if (!dead) setState("iframe"); }    // offline or an old browser: fall back to the built-in viewer
+    })();
+    return () => { dead = true; };
+  }, [src]);
+  if (state === "iframe") return h("iframe", {src, title: "Sheet preview"});
+  return h("div", null, state === "loading" && h("div", {className: "hint", style: {marginTop: 12}}, "Drawing the preview..."),
+    h("div", {ref: box, className: "pdfpages"}));
+}
+
 /* ───────────── "Install app" (PWA) ─────────────
    Android / desktop Chrome: the browser offers an install event - we show our own button for it.
    iPhone / iPad Safari: no such event exists, so we explain "Share -> Add to Home Screen". Hidden once installed. */
@@ -806,7 +887,7 @@ const Install = (() => {
   window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); deferred = e; emit(); });
   window.addEventListener("appinstalled", () => { deferred = null; emit(); });
   const standalone = () => window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
-  const ios = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const ios = isIOS;
   return {
     available: () => !standalone() && (!!deferred || ios()),
     ios: () => ios() && !deferred,
@@ -1017,7 +1098,6 @@ function Landing({go}) {
     els.forEach(e => io.observe(e));
     return () => io.disconnect();
   }, []);
-  const figures = [["~₹1", "print cost per student"], ["10 / 15", "questions per sheet"], ["A4", "plain paper, any printer"], ["0", "answers guessed"]];
   const steps = [["write", "Write", "Paste questions or use our AI prompt."], ["print", "Print", "A unique sheet for every student."],
     ["scan", "Scan", "Phone camera or one scanned PDF."], ["send", "Publish", "Release marks when you are ready."]];
   const features = [["shuffle", "Every paper is different", "Shuffled questions per student. Copying stops working."],
@@ -1045,8 +1125,6 @@ function Landing({go}) {
         h("div", {className: "heronote in-up", style: {"--i": 4}}, "Student? ", h("a", {onClick: () => go("#login")}, "Sign in with your student ID")),
         h("ul", {className: "ticks in-up", style: {"--i": 5}}, ["AI question prompt", "A different paper for every student", "Phone or printer-scanner", "No OMR machine"].map(x => h("li", {key: x}, x)))),
       h(HeroSheet))),
-
-    h("div", {className: "wrap"}, h("div", {className: "figures pfig"}, figures.map(([n, l], i) => h("div", {className: "figure rv", key: n, style: {"--i": i}}, h("div", {className: "n"}, n), h("div", {className: "l"}, l))))),
 
     h("div", {className: "wrap", id: "how"}, h("div", {className: "section"}, h("h2", {className: "rv"}, "How it works"),
       h("div", {className: "flow rv"}, steps.map(([ic, t, p], i) => h("div", {className: "fstep", key: t, style: {"--i": i}}, h("div", {className: "ic"}, h(Icon, {n: ic})), h("h3", null, t), h("p", null, p)))))),
@@ -1405,7 +1483,7 @@ function QuestionGeneration({onCreated}) {
     h("div", {className: "row"},
       h("button", {className: "b sec", disabled: !!busy, onClick: doPreview}, busy === "preview" ? "Building preview..." : "Preview sheet"),
       h("button", {className: "b", disabled: !!busy, onClick: generate}, busy === "gen" ? "Starting..." : "Generate sheets for " + d.num_students + " student(s)")),
-    preview && h("iframe", {src: preview, title: "Sheet preview"}));
+    preview && h(PdfPages, {src: preview}));
 }
 
 /* ───────────── exam list / detail ───────────── */
@@ -1592,7 +1670,7 @@ function GradePages({examId, examTitle, onDone}) {
       !running && items.some(i => i.skipped) && h("div", {className: "notice", style: {marginTop: 10, marginBottom: 0}},
         h("span", null, items.filter(i => i.skipped).length + " of these sheets " + (items.filter(i => i.skipped).length === 1 ? "was" : "were") + " already processed, so " + (items.filter(i => i.skipped).length === 1 ? "it was" : "they were") + " skipped and their earlier results are unchanged. To check them again, tick \"Check again and replace\" and upload the files once more.")),
       !running && job && b.status === "finished" && h("div", {className: "row", style: {marginTop: 8}},
-        h("a", {href: "/api/exams/" + examId + "/scan_batch/" + job.id + "/results.csv"}, h("button", {className: "b sec"}, "Download this upload (CSV)")),
+        h(Download, {href: "/api/exams/" + examId + "/scan_batch/" + job.id + "/results.csv", name: "exam_" + examId + "_upload_" + job.id + ".csv", className: "b sec"}, "Download this upload (CSV)"),
         h("button", {className: "b sec", onClick: () => Batches.clear()}, "Close")),
       items.length > 0 && h("div", {style: {maxHeight: 360, overflow: "auto", marginTop: 8}}, h("table", null,
         h("thead", null, h("tr", null, ["Page", "Paper ID", "Regn no.", "Score", "Right / wrong", "Note"].map(x => h("th", {key: x}, x)))),
@@ -1609,7 +1687,7 @@ function ExamResults({examId, refresh, onOpen}) {
   if (!d) return null;
   return h("div", {className: "card"},
     h("div", {className: "row", style: {justifyContent: "space-between"}}, h("h2", {style: {margin: 0}}, "Results (" + d.scanned + " of " + d.sheets + " sheets checked" + (d.needs_review ? ", " + d.needs_review + " need review" : "") + ")"),
-      h("a", {href: "/api/exams/" + examId + "/results.csv"}, h("button", {className: "b"}, "Download all results (CSV)"))),
+      h(Download, {href: "/api/exams/" + examId + "/results.csv", name: "exam_" + examId + "_results.csv", className: "b"}, "Download all results (CSV)")),
     d.rows.length === 0 ? h("div", {className: "hint", style: {marginTop: 8}}, "Nothing checked yet.") :
     h("div", {style: {maxHeight: 420, overflow: "auto"}}, h("table", null,
       h("thead", null, h("tr", null, ["Paper ID", "Regn no.", "Student", "Score", "Right / wrong", "Note", ""].map(x => h("th", {key: x}, x)))),
@@ -1680,9 +1758,9 @@ function ExamDetail({id, back, initialResult}) {
     e.status === "generating" && h("div", {className: "card"}, "Generating sheets: " + e.progress + " / " + e.num_students),
     e.status === "failed" && h("div", {className: "err"}, e.error),
     e.status === "ready" && h("div", {className: "row", style: {marginBottom: 16}},
-      h("a", {href: "/api/exams/" + id + "/print.pdf", target: "_blank"}, h("button", {className: "b"}, "Download all papers (one PDF)")),
-      h("a", {href: "/api/exams/" + id + "/download.zip"}, h("button", {className: "b sec"}, "Download folder (.zip)")),
-      h("a", {href: "/api/exams/" + id + "/manifest.csv", target: "_blank"}, h("button", {className: "b sec"}, "Manifest CSV (IDs, QR text, keys)"))),
+      h(Download, {href: "/api/exams/" + id + "/print.pdf", name: "exam_" + id + "_all_sheets.pdf", className: "b"}, "Download all papers (one PDF)"),
+      h(Download, {href: "/api/exams/" + id + "/download.zip", name: "exam_" + id + "_sheets.zip", className: "b sec"}, "Download folder (.zip)"),
+      h(Download, {href: "/api/exams/" + id + "/manifest.csv", name: "exam_" + id + "_manifest.csv", className: "b sec"}, "Manifest CSV (IDs, QR text, keys)")),
     e.status === "ready" && h("div", {className: "hint", style: {marginBottom: 12}}, "One PDF with every student's paper, in order. Print it single-sided: each student's answer strip is on the first page of their paper; a longer paper's extra page only continues the questions."),
     e.status === "ready" && h(ReleaseToggle, {exam: e, onChange: x => setE(old => Object.assign({}, old, x))}),
     e.status === "ready" && h(GradePages, {examId: id, examTitle: e.title, onDone: () => setRefresh(n => n + 1)}),
@@ -1692,7 +1770,7 @@ function ExamDetail({id, back, initialResult}) {
         h("thead", null, h("tr", null, ["#", "Paper ID", "QR text", ""].map(x => h("th", {key: x}, x)))),
         h("tbody", null, e.sheets.map(s => h("tr", {key: s.paper_id}, h("td", null, s.student_no), h("td", null, h("b", null, s.paper_id)),
           h("td", null, h("code", null, s.qr)),
-          h("td", null, e.status === "ready" && h("a", {href: "/api/exams/" + id + "/sheets/" + s.paper_id + ".pdf", target: "_blank"}, "PDF")))))))));
+          h("td", null, e.status === "ready" && h(Download, {href: "/api/exams/" + id + "/sheets/" + s.paper_id + ".pdf", name: s.paper_id + ".pdf", link: true}, "PDF")))))))));
 }
 
 /* ───────────── student portal ───────────── */
@@ -1808,8 +1886,8 @@ function ResultDetail({base, back, backLabel, teacher, notice, clearNotice}) {
           h("span", null, h("i", {className: "dot", style: {background: "#006ec8"}}), "right answer you missed"), h("span", null, h("i", {className: "dot", style: {background: "#ff8c00"}}), "unclear")),
         h("a", {href: img, target: "_blank"}, h("img", {className: "sheetimg", src: img, alt: "Scanned answer sheet"})),
         h("div", {className: "hint"}, "Tap the sheet to open it full size."),
-        h("div", {className: "row", style: {marginTop: 10}}, h("a", {href: base + "/sheet.pdf"}, h("button", {className: "b"}, "Download marked sheet (PDF)")),
-          h("a", {href: base + "/clean.pdf"}, h("button", {className: "b sec"}, "Clean scan (PDF)"))))));
+        h("div", {className: "row", style: {marginTop: 10}}, h(Download, {href: base + "/sheet.pdf", name: "marked_sheet.pdf", className: "b"}, "Download marked sheet (PDF)"),
+          h(Download, {href: base + "/clean.pdf", name: "clean_scan.pdf", className: "b sec"}, "Clean scan (PDF)")))));
 }
 
 const STUDENT_STEPS = {wait: "Your sheet is next...", prepare: "Preparing this exam's sheet layout (only the first scan after a server update - can take a minute)...",
