@@ -128,6 +128,7 @@ details.promptbox summary{cursor:pointer;font-weight:600;color:var(--pri)}
 .ans{display:grid;grid-template-columns:repeat(auto-fill,minmax(110px,1fr));gap:8px;margin-top:10px}
 .ans div{border:1px solid var(--line);border-radius:6px;padding:6px 10px}
 iframe{width:100%;height:760px;border:1px solid var(--line);border-radius:6px;margin-top:12px}
+.updbar{position:fixed;left:50%;bottom:calc(16px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:9999;display:flex;align-items:center;gap:12px;background:var(--card);color:var(--ink,inherit);border:1px solid var(--line);border-radius:10px;padding:10px 12px 10px 16px;box-shadow:0 8px 24px rgba(0,0,0,.18);font-size:14px;width:max-content;max-width:calc(100vw - 32px)}
 .pdfpages{margin-top:12px;display:flex;flex-direction:column;gap:12px;align-items:center}.pdfpage{width:100%;max-width:900px;height:auto;border:1px solid var(--line);border-radius:6px;background:#fff}
 
 /* public pages: intro + sign in */
@@ -2106,5 +2107,27 @@ function App() {
   if (!user) return hash === "#login" || hash === "#signup" ? h(AuthPage, {mode: hash === "#signup" ? "register" : "login", onUser: setUser, go}) : h(Landing, {go});
   return user.role === "teacher" ? h(Teacher, {user, onLogout: logout}) : h(Student, {user, setUser, onLogout: logout});
 }
-ReactDOM.createRoot(document.getElementById("root")).render(h(App));
+/* An installed phone app is never reloaded - it just comes back from the background with the old page. So each
+   time it comes back (and every 30 minutes) we ask the server for the page version and offer a reload if it changed. */
+function UpdateBanner() {
+  const [stale, setStale] = useState(false);
+  useEffect(() => {
+    let mine = null;
+    const check = async () => {
+      if (document.visibilityState !== "visible") return;
+      try {
+        const v = (await (await fetch("/api/app_version", {cache: "no-store"})).json()).version;
+        if (mine === null) mine = v; else if (v !== mine) setStale(true);
+      } catch (e) {}
+    };
+    check();
+    const t = setInterval(check, 30 * 60 * 1000);
+    document.addEventListener("visibilitychange", check);
+    return () => { clearInterval(t); document.removeEventListener("visibilitychange", check); };
+  }, []);
+  return stale ? h("div", {className: "updbar", role: "status"}, "A new version of Deskoros is ready.",
+    h("button", {className: "b", onClick: () => location.reload()}, "Update now")) : null;
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(h(React.Fragment, null, h(App), h(UpdateBanner)));
 </script></body></html>

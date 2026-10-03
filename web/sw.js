@@ -1,7 +1,7 @@
 /* Deskoros service worker: makes the app installable and quick to open.
    Only the app shell (this page, icons, the React/KaTeX scripts) is cached. Anything from /api - logins, exams,
    marks, uploads - always goes to the server and is never stored, so nobody sees stale or someone else's data. */
-const VERSION = "deskoros-v1";
+const VERSION = "deskoros-v2";
 const SHELL = ["/", "/manifest.webmanifest", "/logo.svg", "/icons/icon-192.png", "/icons/icon-512.png", "/icons/apple-touch-icon.png", "/icons/favicon-64.png"];
 const CDN = ["https://cdnjs.cloudflare.com/"];
 
@@ -22,7 +22,7 @@ self.addEventListener("fetch", e => {
   if (same && url.pathname === "/demo") return;                          // the demo video page: not the app shell
 
   if (req.mode === "navigate") {                                          // the page: fresh when online, cached when offline
-    e.respondWith(fetch(req).then(r => {
+    e.respondWith(fetch(req, {cache: "no-cache"}).then(r => {
       if (r.ok) { const copy = r.clone(); caches.open(VERSION).then(c => c.put("/", copy)); }
       return r;
     }).catch(() => caches.match("/")));

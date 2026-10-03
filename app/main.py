@@ -1206,9 +1206,20 @@ def resolve_qr(token: str, user: User = Depends(auth.current_user), db: Session 
     return {"role": "student", "status": "ok", "result_id": result.id}
 
 
+# The app page must never come from a stale cache: an installed phone app would otherwise keep the old version.
+NO_CACHE = {"Cache-Control": "no-cache"}
+INDEX_HTML = os.path.join(config.ROOT_DIR, "web", "index.html")
+
+
 @app.get("/r/{token}")
 def public_page(token: str):
-    return FileResponse(os.path.join(config.ROOT_DIR, "web", "index.html"))
+    return FileResponse(INDEX_HTML, headers=NO_CACHE)
+
+
+@app.get("/api/app_version")
+def app_version():
+    # changes whenever the page is updated; the open app polls it to offer a reload
+    return {"version": str(int(os.path.getmtime(INDEX_HTML)))}
 
 
 @app.api_route("/api/health", methods=["GET", "HEAD"])
@@ -1248,9 +1259,9 @@ def logo_file():
 @app.get("/demo")
 def demo_page():
     # the animated explainer, shown inside the landing page's "Demo video" window
-    return FileResponse(os.path.join(config.ROOT_DIR, "web", "demo.html"))
+    return FileResponse(os.path.join(config.ROOT_DIR, "web", "demo.html"), headers=NO_CACHE)
 
 
 @app.get("/")
 def index():
-    return FileResponse(os.path.join(config.ROOT_DIR, "web", "index.html"))
+    return FileResponse(INDEX_HTML, headers=NO_CACHE)
