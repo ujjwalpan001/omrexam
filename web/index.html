@@ -163,11 +163,17 @@ iframe{width:100%;height:760px;border:1px solid var(--line);border-radius:6px;ma
 .plinks button:hover{background:#f1ede6;color:var(--pri)}
 .pub{overflow-x:hidden}
 .pub .wrap{max-width:min(1760px,100%);padding-left:clamp(20px,4.5vw,96px);padding-right:clamp(20px,4.5vw,96px)}
+.pub .pnav{padding:clamp(14px,1vw,20px) 0}
+.pub .pnav .brand{font-size:clamp(20px,1.2vw,24px)}.pub .pnav .brandlogo{height:clamp(40px,2.4vw,50px)}
+.pub .plinks{gap:clamp(4px,.6vw,14px)}
+.pub .plinks button{font-size:clamp(14.5px,.88vw,17px);padding:8px clamp(10px,.7vw,14px)}
+.pub .pnav .links{gap:clamp(10px,.8vw,16px)}
+.pub .pnav .links .b{font-size:clamp(14px,.84vw,16px);padding:clamp(9px,.5vw,10px) clamp(16px,1vw,20px);border-radius:8px}
 html.noscroll{scrollbar-width:none}html.noscroll::-webkit-scrollbar{display:none}
 a.b{display:inline-block;text-decoration:none;background:var(--pri);color:#fff;border:1px solid var(--pri);border-radius:6px;padding:9px 16px;font-size:14px;font-weight:600;line-height:1.55}a.b:hover{background:var(--pri-h)}
 .pnav{position:relative;z-index:2}
 /* hero */
-.hero{position:relative;align-items:start;padding:40px 0 56px;grid-template-columns:1.1fr 1fr;gap:clamp(40px,5vw,110px);min-height:calc(100vh - 120px)}
+.hero{position:relative;align-items:start;padding:24px 0 48px;grid-template-columns:1.1fr 1fr;gap:clamp(40px,5vw,110px);min-height:calc(100vh - 110px)}
 .herotxt{align-self:center;padding-bottom:40px}
 .heropix{max-width:clamp(380px,26vw,520px);margin:-56px 0 22px -2px}
 .herotxt .display{font-size:clamp(46px,3.4vw,66px);line-height:1.04;letter-spacing:-.02em}
@@ -187,15 +193,14 @@ a.b{display:inline-block;text-decoration:none;background:var(--pri);color:#fff;b
 button.b,a.b{transition:transform .15s,box-shadow .15s,background .15s}
 button.b:hover,a.b:hover{transform:translateY(-1px);box-shadow:0 6px 16px rgba(34,64,95,.18)}
 /* interactive sample sheet */
-.heroart{position:relative;max-width:max(340px,min(580px,calc((100vh - 170px) * .62)));margin-left:auto;width:100%}
+.heroart{position:relative;max-width:max(340px,min(640px,calc((100vh - 282px) * .68 + 40px)));margin-left:auto;margin-right:clamp(0px,4.5vw,96px);width:100%}
 .heroart .paper svg{width:100%;height:auto;display:block;overflow:visible;user-select:none;-webkit-user-select:none}
-.desk{position:relative;isolation:isolate;padding:62px 22px 18px;color:#fff}
+.desk{position:relative;isolation:isolate;padding:54px 20px 20px;color:#fff}
 .desk:before{content:"";position:absolute;inset:0;z-index:-1;border-radius:20px;background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='600' height='600'%3E%3Cfilter id='w'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.003 0.06' numOctaves='4' seed='8'/%3E%3CfeColorMatrix values='0 0 0 0 0.24 0 0 0 0 0.12 0 0 0 0 0.04 0 0 0 1.7 -0.48'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23w)'/%3E%3C/svg%3E"),linear-gradient(100deg,rgba(255,255,255,.08),transparent 40%,rgba(0,0,0,.08)),linear-gradient(90deg,#b98457,#c79465 35%,#b07b4f 65%,#c18d5f);background-size:600px 600px,100% 100%,100% 100%;
   box-shadow:inset 0 1px 0 rgba(255,255,255,.25),inset 0 -3px 0 rgba(90,52,25,.45),inset 0 0 0 1px rgba(70,40,18,.35),0 30px 50px rgba(70,42,20,.32),0 4px 10px rgba(70,42,20,.2);
   transform:rotate(2.5deg);transition:transform .6s cubic-bezier(.2,.8,.2,1)}
 .heroart .tilt{transform:rotate(2.5deg);transform-box:view-box;transform-origin:50% 50%;transition:transform .6s cubic-bezier(.2,.8,.2,1)}
-.desk .sheetbar{transform:rotate(2.5deg);transform-origin:50% -400px;transition:transform .6s cubic-bezier(.2,.8,.2,1)}
-.desk:hover:before,.heroart:not(.fresh) .desk:before,.desk:hover .tilt,.heroart:not(.fresh) .tilt,.desk:hover .sheetbar,.heroart:not(.fresh) .sheetbar{transform:none}
+.desk:hover:before,.heroart:not(.fresh) .desk:before,.desk:hover .tilt,.heroart:not(.fresh) .tilt{transform:none}
 /* the paper tilts inside its own SVG: a CSS-rotated sheet would be redrawn as a blurry bitmap */
 .note{position:absolute;left:22px;top:12px;z-index:2;background:linear-gradient(#fff6b8,#ffeb85);color:#4a3b12;padding:8px 14px 9px;border-radius:2px;transform:rotate(-3deg);box-shadow:0 8px 14px rgba(60,35,10,.3);font-family:var(--serif);line-height:1.25}
 .note:before{content:"";position:absolute;left:50%;top:-8px;width:46px;height:15px;margin-left:-23px;background:rgba(255,255,255,.55);transform:rotate(2deg);box-shadow:0 1px 2px rgba(0,0,0,.1)}
@@ -204,9 +209,9 @@ button.b:hover,a.b:hover{transform:translateY(-1px);box-shadow:0 6px 16px rgba(3
 .hole{position:absolute;left:50%;top:12px;width:46px;height:14px;margin-left:-23px;border-radius:99px;background:var(--bg);box-shadow:inset 0 2px 3px rgba(40,20,5,.55)}
 @media(max-width:560px){.note{left:14px;padding:6px 10px}.note b{font-size:15px}.note span{font-size:11px}}
 .paper{position:relative}
-.desk .sheetbar{margin-top:18px}
+.heroart .sheetbar{margin-top:16px}
 .desk button.b:disabled{opacity:.7}
-.desk .sheetbar .hint{color:#fffaf2;text-shadow:0 1px 2px rgba(60,30,10,.6);font-weight:600}
+.heroart .sheetbar .hint{color:var(--mut);font-weight:600}
 .heroart .bb{cursor:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 24 24'%3E%3Cpath d='M3 21l1.5-5L16 4.5l3.5 3.5L8 19.5z' fill='%23f3c14b' stroke='%231f2530' stroke-width='1.3' stroke-linejoin='round'/%3E%3Cpath d='M16 4.5l2-2 3.5 3.5-2 2z' fill='%23e58c8c' stroke='%231f2530' stroke-width='1.3'/%3E%3Cpath d='M3 21l1.5-5 3.5 3.5z' fill='%231f2530'/%3E%3C/svg%3E") 3 24,pointer}
 .heroart .bb .ink{fill:#1f2530;transform:scale(0);transform-box:fill-box;transform-origin:center;transition:transform .22s cubic-bezier(.3,1.6,.5,1),fill .3s;pointer-events:none}
 .heroart .bb.on .ink,.heroart .bb.ok .ink,.heroart .bb.bad .ink{transform:scale(1)}
@@ -992,9 +997,9 @@ function HeroSheet() {
       h("path", {d: "M10 26h180l-8 30a8 8 0 0 1-7.7 6H25.7a8 8 0 0 1-7.7-6z", fill: "url(#clipm)", stroke: "#6f7780", strokeWidth: 1}),
       h("path", {d: "M22 32h156", stroke: "#fff", strokeOpacity: .8, strokeWidth: 1.5}),
       h("circle", {cx: 34, cy: 44, r: 4.5, fill: "#c9ced4", stroke: "#6f7780"}), h("circle", {cx: 166, cy: 44, r: 4.5, fill: "#c9ced4", stroke: "#6f7780"}),))),
-    !touched && h("div", {className: "chipf c1"}, h("span", {className: "dotc", style: {background: "var(--pri)"}}, "✎"), h("span", null, "Try it yourself", h("small", null, "click the bubbles to fill them")))),
+    !touched && h("div", {className: "chipf c1"}, h("span", {className: "dotc", style: {background: "var(--pri)"}}, "✎"), h("span", null, "Try it yourself", h("small", null, "click the bubbles to fill them"))))),
     h("div", {className: "sheetbar"}, h("button", {className: "b", onClick: check, disabled: !answered || phase === "scanning"}, phase === "scanning" ? "Checking…" : "Check my sheet"),
-      h("button", {className: "b sec", onClick: clear}, "Clear"), h("span", {className: "hint"}, done ? (reg.every(d => d !== null) ? "Regn No " + reg.join("") + " \u00B7 " : "") + "green right, red wrong, blue missed" : answered + " of 10 answered"))));
+      h("button", {className: "b sec", onClick: clear}, "Clear"), h("span", {className: "hint"}, done ? (reg.every(d => d !== null) ? "Regn No " + reg.join("") + " \u00B7 " : "") + "green right, red wrong, blue missed" : answered + " of 10 answered")));
 }
 
 const useNoScrollbar = () => useEffect(() => {          // public pages: hide the scroll bar (scrolling still works)
